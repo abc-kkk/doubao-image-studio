@@ -1,7 +1,10 @@
 import { useImageStore } from '../store/imageStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { GeneratedImage } from '../types';
+
+import { ask } from '@tauri-apps/plugin-dialog';
 
 export function useGallery() {
   const { images, removeImage, clearImages: storeClearImages, selectImage, selectedImageId } = useImageStore();
@@ -17,6 +20,14 @@ export function useGallery() {
 
   const handleRemove = useCallback(
     async (id: string) => {
+      // Use native dialog for confirmation
+      const confirmed = await ask('确定要从历史记录和本地磁盘中删除这张图片吗？', { 
+        title: '删除图片',
+        kind: 'warning' 
+      });
+      
+      if (!confirmed) return;
+
       const img = images.find(i => i.id === id);
       if (img?.localPath) {
         try {
@@ -31,17 +42,24 @@ export function useGallery() {
     [images, removeImage, selectImage, selectedImageId]
   );
 
+  const { settings } = useSettingsStore();
+
   const handleClear = useCallback(async () => {
-    if (confirm('确定要清空所有历史记录和本地图片吗？')) {
+    const confirmed = await ask('确定要清空所有历史记录和本地图片吗？此操作不可撤销。', { 
+      title: '清空历史记录',
+      kind: 'warning'
+    });
+
+    if (confirmed) {
       try {
-        await invoke('clear_history_images');
+        await invoke('clear_history_images', { saveDir: settings.historyDir });
       } catch (err) {
         console.error('Failed to clear history images:', err);
       }
       storeClearImages();
       selectImage(null);
     }
-  }, [storeClearImages, selectImage]);
+  }, [storeClearImages, selectImage, settings.historyDir]);
 
   return {
     images,

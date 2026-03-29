@@ -5,10 +5,23 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "opener:default",
     "fs:default",
+    "fs:allow-home-read-recursive",
+    "fs:allow-home-write-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "/Users/ios/Downloads/doubao-images/**" },
+        { "path": "$APPLOCALDATA/**" },
+        { "path": "$HOME/Library/Application Support/**" }
+      ]
+    },
     "dialog:default",
     "shell:default",
+    "core:path:default",
+    "core:event:default",
     {
       "identifier": "http:default",
       "allow": [

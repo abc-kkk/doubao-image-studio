@@ -13,6 +13,7 @@ import { useImageStore } from '../../store/imageStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import type { ModelId, AspectRatio, GeneratedImage } from '../../types';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { urlToBase64 } from '../../utils/imageUtils';
 
 export function AppShell() {
@@ -91,18 +92,18 @@ export function AppShell() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0f0f10] border border-white/5">
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Functional Title Bar */}
-        <div className="h-11 flex items-center px-4 border-b border-white/[0.06] bg-[#0f0f10] drag-region shrink-0">
-          <div className="flex items-center gap-2 no-drag">
-             <div className="w-6 h-6 rounded-lg bg-violet-600 flex items-center justify-center">
-                <LayoutGrid size={14} className="text-white" />
-             </div>
-             <span className="text-sm font-bold text-white/90 tracking-tight">豆包生图助手</span>
-          </div>
-          
-          <div className="flex-1" />
-          
-          <div className="flex items-center gap-1 no-drag">
+        <div className="h-20 relative border-b border-white/[0.04] bg-[#0f0f10] shrink-0">
+          <div className="relative h-full flex items-end px-4 pb-4">
+            <div className="flex items-center gap-2.5 no-drag pointer-events-auto">
+               <div className="w-6 h-6 rounded-lg bg-violet-600 flex items-center justify-center">
+                  <LayoutGrid size={14} className="text-white" />
+               </div>
+               <span className="text-sm font-bold text-white/90 tracking-tight">豆包生图助手</span>
+            </div>
+            
+            <div className="flex-1 h-full" onMouseDown={() => getCurrentWindow().startDragging()} />
+            
+            <div className="flex items-center gap-1 no-drag pointer-events-auto">
             {/* Connection Status */}
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.04] transition-all ${
               wsStatus === 'connected' ? 'text-emerald-400/80' : 'text-amber-400/80 animate-pulse'
@@ -135,6 +136,7 @@ export function AppShell() {
             </button>
           </div>
         </div>
+      </div>
  
         <div className="flex-1 overflow-hidden">
           <div className="flex h-full">

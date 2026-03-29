@@ -12,7 +12,8 @@
   "app": {
     "windows": [
       {
-        "title": "AI Studio",
+        "title": "",
+        "titleBarStyle": "Overlay",
         "width": 1320,
         "height": 960,
         "minWidth": 960,
@@ -22,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://localhost:8081 ws://localhost:8081 https:; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:8081 ws://localhost:8081 https: *; img-src 'self' asset: https://asset.localhost asset://* https: * data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
     }
   },
   "bundle": {

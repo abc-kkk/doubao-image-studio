@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { X, Download, Trash2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { ask } from '@tauri-apps/plugin-dialog';
 import type { GeneratedImage } from '../../types';
 
 interface ImageLightboxProps {
@@ -69,8 +69,12 @@ export function ImageLightbox({
           )}
           {onRemove && (
             <button
-              onClick={() => {
-                if (confirm('确认删除这张图片吗？')) {
+              onClick={async () => {
+                const confirmed = await ask('确认要删除这张图片吗？', { 
+                  title: '删除图片',
+                  kind: 'warning' 
+                });
+                if (confirmed) {
                   onRemove(image.id);
                   onClose();
                 }
@@ -104,7 +108,7 @@ export function ImageLightbox({
 
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
           <img
-            src={image.localPath ? convertFileSrc(image.localPath) : image.url}
+            src={image.localPath ? `http://localhost:8081/local-proxy?path=${encodeURIComponent(image.localPath)}` : image.url}
             alt={image.prompt}
             className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300 pointer-events-auto shadow-black"
           />

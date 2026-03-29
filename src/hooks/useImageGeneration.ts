@@ -28,19 +28,26 @@ export function useImageGeneration() {
           referenceImages
         );
 
+        const batchId = crypto.randomUUID();
+
         // Save each image to local history folder
         const savedImages = await Promise.all(urls.map(async (url) => {
           const id = crypto.randomUUID();
           let localPath: string | undefined;
           try {
             // Save to local disk
-            localPath = await invoke<string>('save_history_image', { url, id });
+            localPath = await invoke<string>('save_history_image', { 
+              url, 
+              id, 
+              saveDir: settings.historyDir 
+            });
           } catch (err) {
             console.error('[AI Studio] Failed to save history image:', err);
           }
           
           return {
             id,
+            batchId,
             url,
             localPath,
             prompt,

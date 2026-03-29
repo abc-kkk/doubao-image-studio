@@ -23,7 +23,11 @@ export function ImageCard({
   onUseAsReference,
 }: ImageCardProps) {
   const [hovered, setHovered] = useState(false);
-  const displayUrl = image.localPath ? convertFileSrc(image.localPath) : image.url;
+  
+  // Use Express proxy as a fallback or primary for local files to avoid Tauri protocol issues
+  const displayUrl = image.localPath 
+    ? `http://localhost:8081/local-proxy?path=${encodeURIComponent(image.localPath)}&w=400` 
+    : image.url;
 
   return (
     <div
@@ -37,6 +41,7 @@ export function ImageCard({
         alt={image.prompt}
         className="w-full h-full object-cover block"
         loading="lazy"
+        decoding="async"
       />
 
       {/* Action Overlay */}

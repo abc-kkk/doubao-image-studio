@@ -109,8 +109,8 @@ async fn download_image(url: String, filename: String, save_dir: Option<String>)
 }
 
 #[tauri::command]
-async fn save_history_image(app: tauri::AppHandle, url: String, id: String) -> Result<String, String> {
-    println!("[AI Studio] Saving history image: {} ({})", id, url);
+async fn save_history_image(app: tauri::AppHandle, url: String, id: String, save_dir: Option<String>) -> Result<String, String> {
+    println!("[AI Studio] Saving history image: {} ({}) to {:?}", id, url, save_dir);
     
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -120,8 +120,17 @@ async fn save_history_image(app: tauri::AppHandle, url: String, id: String) -> R
     let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
 
-    let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
-    let history_dir = data_dir.join("history");
+    let history_dir = if let Some(dir) = save_dir {
+        if dir.is_empty() {
+            let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
+            data_dir.join("history")
+        } else {
+            std::path::PathBuf::from(dir)
+        }
+    } else {
+        let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
+        data_dir.join("history")
+    };
 
     if !history_dir.exists() {
         std::fs::create_dir_all(&history_dir).map_err(|e| e.to_string())?;
@@ -143,9 +152,19 @@ fn delete_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn clear_history_images(app: tauri::AppHandle) -> Result<(), String> {
-    let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
-    let history_dir = data_dir.join("history");
+fn clear_history_images(app: tauri::AppHandle, save_dir: Option<String>) -> Result<(), String> {
+    let history_dir = if let Some(dir) = save_dir {
+        if dir.is_empty() {
+            let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
+            data_dir.join("history")
+        } else {
+            std::path::PathBuf::from(dir)
+        }
+    } else {
+        let data_dir = app.path().app_local_data_dir().map_err(|e: tauri::Error| e.to_string())?;
+        data_dir.join("history")
+    };
+
     if history_dir.exists() {
         std::fs::remove_dir_all(&history_dir).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(&history_dir).map_err(|e| e.to_string())?;

@@ -13,6 +13,7 @@ export interface Model {
 
 export interface GeneratedImage {
   id: string;
+  batchId?: string;
   url: string;
   localPath?: string;
   prompt: string;
@@ -39,6 +40,7 @@ export interface GenerationJob {
 export interface AppSettings {
   websocketUrl: string;
   saveDir: string;
+  historyDir: string;
   defaultModel: ModelId;
   defaultAspectRatio: AspectRatio;
 }

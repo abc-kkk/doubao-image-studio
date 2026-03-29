@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { Globe, Info, Folder } from 'lucide-react';
+import { Globe, Info, Folder, Terminal, Copy, ExternalLink } from 'lucide-react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../store/settingsStore';
+import { ApiDocModal } from './ApiDocModal';
+import { Toast } from '../common/Toast';
 import type { AppSettings } from '../../types';
 
 interface SettingsModalProps {
@@ -14,6 +16,20 @@ interface SettingsModalProps {
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { settings, updateSettings } = useSettingsStore();
   const [draft, setDraft] = useState<AppSettings>(settings);
+  const [showDoc, setShowDoc] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
+  const curlExample = `curl -X POST http://localhost:8081/api/unified -H "Content-Type: application/json" -d '{"mode":"image_generation","model":"db","prompt":"a cute cat"}'`;
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(curlExample);
+    setShowToast(true);
+  };
+
+  // Sync draft when settings change
+  React.useEffect(() => {
+    if (open) setDraft(settings);
+  }, [settings, open]);
 
   const handleSave = () => {
     updateSettings(draft);
@@ -54,7 +70,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">下载路径</span>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-white/45">保存目录</label>
+            <label className="text-xs font-medium text-white/45">导出保存目录</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -71,7 +87,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                     const selected = await openDialog({
                       directory: true,
                       multiple: false,
-                      title: '选择生成图片保存目录'
+                      title: '选择生成图片下载目录'
                     });
                     if (selected && typeof selected === 'string') {
                       setDraft(d => ({ ...d, saveDir: selected }));
@@ -86,8 +102,89 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               </Button>
             </div>
             <p className="text-[11px] text-white/20 mt-0.5">
-              生成的图片将自动保存到此目录。留空则默认保存到系统的“下载”文件夹。
+              点击卡片上的“下载”按钮时，图片会保存到此目录。
             </p>
+          </div>
+        </div>
+
+        {/* History Path section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Folder size={13} className="text-violet-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">历史记录存储</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-white/45">历史图片存储目录</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={draft.historyDir}
+                onChange={(e) => setDraft((d) => ({ ...d, historyDir: e.target.value }))}
+                placeholder="默认使用应用数据目录"
+                className="flex-1 h-10 px-4 text-sm rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/80 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/15 transition-all placeholder-white/20"
+              />
+              <Button 
+                variant="secondary" 
+                size="md" 
+                onClick={async () => {
+                  try {
+                    const selected = await openDialog({
+                      directory: true,
+                      multiple: false,
+                      title: '选择历史图片存储目录'
+                    });
+                    if (selected && typeof selected === 'string') {
+                      setDraft(d => ({ ...d, historyDir: selected }));
+                    }
+                  } catch (err) {
+                    console.error('Failed to open directory picker:', err);
+                  }
+                }}
+                className="shrink-0"
+              >
+                浏览...
+              </Button>
+            </div>
+            <p className="text-[11px] text-white/20 mt-0.5">
+              生成的图片将自动保存到此目录作为历史记录。留空则使用应用内部目录。
+            </p>
+          </div>
+        </div>
+
+        {/* API section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Terminal size={13} className="text-violet-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">API 接口</span>
+          </div>
+          <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-white/40">快速调用示例 (cURL)</span>
+                <button 
+                  onClick={copyToClipboard}
+                  className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  <Copy size={12} />
+                  复制
+                </button>
+              </div>
+              <div className="p-2.5 rounded-lg bg-black/20 border border-white/[0.05] text-[10px] font-mono text-white/60 truncate">
+                {curlExample}
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-[11px] text-white/30">
+                支持外界程序直接发送生图指令。
+              </p>
+              <button 
+                onClick={() => setShowDoc(true)}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-white/60 hover:text-white transition-colors"
+              >
+                查看完整文档
+                <ExternalLink size={12} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -98,6 +195,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             通过本地 Chrome 扩展与豆包 Web 端通信，自动提交提示词并获取生成图片。
           </p>
         </div>
+
+        {showDoc && <ApiDocModal open={showDoc} onClose={() => setShowDoc(false)} />}
+        {showToast && <Toast message="已复制 cURL 示例" onClose={() => setShowToast(false)} />}
 
         <div className="flex justify-end pt-1.5 border-t border-white/[0.06]" style={{ gap: '12px' }}>
           <Button variant="secondary" size="md" onClick={onClose}>取消</Button>

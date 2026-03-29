@@ -11,6 +11,7 @@ interface SettingsStore {
 const defaults: AppSettings = {
   websocketUrl: 'ws://localhost:8081/ws',
   saveDir: '',
+  historyDir: '',
   defaultModel: 'doubao' as ModelId,
   defaultAspectRatio: '1:1' as AspectRatio,
 };
