@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "豆包生图助手",
+  "productName": "doubao-assistant",
   "version": "1.0.0",
   "identifier": "com.ios.doubao-assistant",
   "build": {
@@ -28,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "dmg"],
     "resources": [
       "../server",
       "../DoubaoShadowNode-local"
