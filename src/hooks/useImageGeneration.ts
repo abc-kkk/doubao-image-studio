@@ -57,9 +57,17 @@ export function useImageGeneration() {
           };
         }));
 
-        // Add all returned images to gallery
-        [...savedImages].reverse().forEach((img) => {
+        // Add all returned images to gallery and sync to SQLite
+        const base = settings.websocketUrl.replace('ws://', 'http://').replace('/ws', '');
+        
+        [...savedImages].reverse().forEach(async (img) => {
           addImage(img);
+          // Sync to SQLite (don't await to keep UI fast)
+          fetch(`${base}/api/history`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(img)
+          }).catch(e => console.warn('History sync failed:', e));
         });
 
         updateCurrentJob({ status: 'success', result: savedImages[0] });

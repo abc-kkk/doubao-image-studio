@@ -93,7 +93,7 @@ export function AppShell() {
     <div className="flex h-screen w-screen overflow-hidden bg-[#0f0f10] border border-white/5">
       <div className="flex flex-col flex-1 overflow-hidden">
         <div className="h-20 relative border-b border-white/[0.04] bg-[#0f0f10] shrink-0">
-          <div className="relative h-full flex items-end px-4 pb-4">
+          <div className="relative h-full flex items-end px-4 pb-5">
             <div className="flex items-center gap-2.5 no-drag pointer-events-auto">
                <div className="w-6 h-6 rounded-lg bg-violet-600 flex items-center justify-center">
                   <LayoutGrid size={14} className="text-white" />

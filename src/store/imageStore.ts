@@ -16,6 +16,7 @@ interface ImageStore {
   selectImage: (id: string | null) => void;
   setViewedImage: (id: string | null) => void;
   purgeReferenceData: () => void;
+  setImages: (images: GeneratedImage[]) => void;
 }
 
 export const useImageStore = create<ImageStore>()(
@@ -49,6 +50,7 @@ export const useImageStore = create<ImageStore>()(
         set((state) => ({
           images: state.images.map(({ referenceImages, ...img }) => img as GeneratedImage),
         })),
+      setImages: (images) => set({ images }),
     }),
     {
       name: 'ai-studio-images',

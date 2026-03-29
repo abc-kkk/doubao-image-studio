@@ -275,7 +275,7 @@ fn find_server_dir() -> Option<String> {
         app_dir.join("../Resources/server"),
         app_dir.join("server"),
         // Dev mode: look for the original doubao-pro project
-        std::path::PathBuf::from("/Users/ios/Desktop/lx-home/doubao-pro"),
+        std::path::PathBuf::from("/Users/ios/Desktop/lx-home/doubao-tauri/server"),
     ];
 
     for path in &candidates {

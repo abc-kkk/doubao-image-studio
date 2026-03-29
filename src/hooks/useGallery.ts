@@ -1,13 +1,26 @@
 import { useImageStore } from '../store/imageStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { GeneratedImage } from '../types';
 
 import { ask } from '@tauri-apps/plugin-dialog';
 
 export function useGallery() {
-  const { images, removeImage, clearImages: storeClearImages, selectImage, selectedImageId } = useImageStore();
+  const { images, removeImage, clearImages: storeClearImages, selectImage, selectedImageId, setImages } = useImageStore();
+
+  const { settings } = useSettingsStore();
+
+  // Load history from SQLite on mount
+  useEffect(() => {
+    const base = settings.websocketUrl.replace('ws://', 'http://').replace('/ws', '');
+    fetch(`${base}/api/history`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setImages(data);
+      })
+      .catch(e => console.warn('Failed to load history:', e));
+  }, [settings.websocketUrl, setImages]);
 
   const selected = images.find((img) => img.id === selectedImageId) ?? null;
 
@@ -41,8 +54,6 @@ export function useGallery() {
     },
     [images, removeImage, selectImage, selectedImageId]
   );
-
-  const { settings } = useSettingsStore();
 
   const handleClear = useCallback(async () => {
     const confirmed = await ask('确定要清空所有历史记录和本地图片吗？此操作不可撤销。', { 

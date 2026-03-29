@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Pro Client</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: #e2e8f0;
+            /* Slate 200 */
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Markdown Styles */
+        .prose-invert {
+            --tw-prose-body: #cbd5e1;
+            --tw-prose-headings: #f1f5f9;
+            --tw-prose-links: #38bdf8;
+            --tw-prose-code: #e2e8f0;
+            --tw-prose-pre-bg: #1e293b;
+            --tw-prose-th-borders: #475569;
+            --tw-prose-td-borders: #334155;
+        }
+
+        .markdown-body pre {
+            background-color: #1e293b;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .markdown-body code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 0.2em 0.4em;
+            border-radius: 0.25rem;
+            font-size: 0.875em;
+        }
+
+        .markdown-body pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
+        .markdown-body p {
+            margin-bottom: 0.75em;
+        }
+
+        .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 0.75em;
+        }
+
+        .markdown-body ol {
+            list-style-type: decimal;
+            padding-left: 1.5em;
+            margin-bottom: 0.75em;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .typing-dot {
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes typing {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body
+    class="h-screen flex flex-col overflow-hidden bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center">
+
+    <!-- Overlay for background dimming -->
+    <div class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-0"></div>
+
+    <!-- Main Container -->
+    <div
+        class="relative z-10 flex flex-col h-full max-w-5xl mx-auto w-full shadow-2xl bg-slate-900/80 border-x border-slate-800">
+
+        <!-- Header -->
+        <header class="glass p-4 flex items-center justify-between z-20">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1
+                        class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
+                        Gemini Relay</h1>
+                    <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span>System Online</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Selector -->
+            <div class="relative group">
+                <select id="model-select"
+                    class="appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5 pr-8 cursor-pointer hover:bg-slate-750 transition-colors">
+                    <optgroup label="Text & Multimodal">
+                        <option value="gemini-2.0-flash" selected>Gemini 2.0 Flash</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                        <option value="mota">ModelScope (Mota)</option>
+                    </optgroup>
+                    <optgroup label="Image Generation">
+                        <!-- <option value="gemini-3-pro-image-preview">Gemini 3 Pro Image Preview</option> -->
+                        <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
+                        <!-- <option value="imagen-4.0-generate-001">Imagen 4.0</option> -->
+                        <!-- <option value="imagen-4.0-fast-generate-001">Imagen 4.0 fast</option>
+                        <option value="imagen-4.0-ultra-generate-001">Imagen 4.0 ultra</option> -->
+                    </optgroup>
+                    <optgroup label="Web Shadow Nodes">
+                        <option value="doubao-pro">Doubao Pro (Web)</option>
+                        <option value="doubao-pro-image">Doubao Pro Image (Web)</option>
+                        <option value="mota-image">ModelScope Image (Flux)</option>
+                    </optgroup>
+                </select>
+                <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <main id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+            <!-- Welcome Message -->
+            <div class="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50"
+                id="welcome-screen">
+                <div class="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
+                    <svg class="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z">
+                        </path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-300">How can I help you today?</h2>
+                <p class="text-slate-500 max-w-md">I can help you write code, analyze images, generate artwork, or just
+                    chat. Select a model and start typing.</p>
+            </div>
+            <!-- Messages will be injected here -->
+        </main>
+
+        <!-- Input Area -->
+        <footer class="glass-panel p-4 z-20">
+            <!-- Image Preview Area -->
+            <div id="image-preview-container" class="hidden flex flex-wrap gap-3 mb-3 px-2">
+                <!-- Images will be added here -->
+            </div>
+
+            <div class="relative flex items-end gap-2 max-w-4xl mx-auto">
+                <!-- Image Upload Button -->
+                <button id="upload-btn"
+                    class="p-3 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-xl transition-all"
+                    title="Upload Image">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                        </path>
+                    </svg>
+                </button>
+                <input type="file" id="file-input" accept="image/*" class="hidden" multiple>
+
+                <!-- Text Input -->
+                <div
+                    class="flex-1 bg-slate-800/50 border border-slate-700 rounded-xl focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500 transition-all">
+                    <textarea id="prompt-input" rows="1"
+                        class="w-full bg-transparent text-slate-200 placeholder-slate-500 p-3 max-h-32 focus:outline-none resize-none"
+                        placeholder="Type a message..."></textarea>
+                </div>
+
+                <!-- Send Button -->
+                <button id="send-btn"
+                    class="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="text-center mt-2">
+                <p class="text-[10px] text-slate-600">Powered by Gemini Relay & Shadow Node</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // =================================================================
+        // Logic
+        // =================================================================
+
+        const RELAY_BASE_URL = 'https://gemini-reply.onrender.com/v1beta/models';
+        // const RELAY_BASE_URL = 'http://localhost:8080/v1beta/models'; // Local testing
+
+        // DOM Elements
+        const chatContainer = document.getElementById('chat-container');
+        const promptInput = document.getElementById('prompt-input');
+        const sendBtn = document.getElementById('send-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-input');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const modelSelect = document.getElementById('model-select');
+        const welcomeScreen = document.getElementById('welcome-screen');
+
+        // State
+        let attachedImages = []; // Array of { base64, mimeType }
+        let isGenerating = false;
+
+        // Auto-resize textarea
+        promptInput.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if (this.value === '') this.style.height = 'auto';
+        });
+
+        // Handle File Upload
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+
+                try {
+                    const base64 = await toBase64(file);
+                    // Remove prefix "data:image/png;base64,"
+                    const cleanBase64 = base64.split(',')[1];
+
+                    attachedImages.push({
+                        mimeType: file.type,
+                        data: cleanBase64,
+                        previewUrl: base64
+                    });
+                } catch (err) {
+                    console.error("Error reading file:", err);
+                }
+            }
+            renderImagePreviews();
+            fileInput.value = ''; // Reset
+        });
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function renderImagePreviews() {
+            imagePreviewContainer.innerHTML = '';
+            if (attachedImages.length > 0) {
+                imagePreviewContainer.classList.remove('hidden');
+            } else {
+                imagePreviewContainer.classList.add('hidden');
+            }
+
+            attachedImages.forEach((img, index) => {
+                const div = document.createElement('div');
+                div.className = 'relative group w-20 h-20 rounded-lg overflow-hidden border border-slate-600';
+                div.innerHTML = `
+                    <img src="${img.previewUrl}" class="w-full h-full object-cover">
+                    <button onclick="removeImage(${index})" class="absolute top-0 right-0 bg-black/70 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                `;
+                imagePreviewContainer.appendChild(div);
+            });
+        }
+
+        window.removeImage = (index) => {
+            attachedImages.splice(index, 1);
+            renderImagePreviews();
+        };
+
+        // Send Message
+        sendBtn.addEventListener('click', sendMessage);
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const text = promptInput.value.trim();
+            if ((!text && attachedImages.length === 0) || isGenerating) return;
+
+            // UI Updates
+            if (welcomeScreen) welcomeScreen.style.display = 'none';
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            isGenerating = true;
+            sendBtn.disabled = true;
+
+            // 1. Add User Message
+            addMessageToChat('user', text, attachedImages);
+
+            // Prepare Payload
+            const model = modelSelect.value;
+            const currentImages = [...attachedImages]; // Copy
+            attachedImages = []; // Clear
+            renderImagePreviews();
+
+            // 2. Add Loading Indicator
+            const loadingId = addLoadingIndicator();
+
+            try {
+                // Construct API Request
+                const parts = [{ text: text }];
+
+                // Add images to parts (for Multimodal)
+                // Note: For Image Generation models, we usually just send text, 
+                // but if the user attached an image for "Image Editing" (if supported), we send it too.
+                currentImages.forEach(img => {
+                    parts.push({
+                        inlineData: {
+                            mimeType: img.mimeType,
+                            data: img.data
+                        }
+                    });
+                });
+
+                const requestBody = {
+                    contents: [{ parts: parts }],
+                    generationConfig: {}
+                };
+
+                // Special config for Image Generation models
+                if (model.includes('image') || model.includes('imagen')) {
+                    requestBody.generationConfig = {
+                        aspectRatio: '1:1',
+                        numberOfImages: 1,
+                        outputMimeType: 'image/png'
+                    };
+                } else {
+                    requestBody.generationConfig = {
+                        temperature: 0.7
+                    };
+                }
+
+                // Determine Base URL based on model
+                // ALWAYS use our local relay server to enable fallback logic and unified handling
+                let baseUrl = 'http://115.190.228.12:8080/v1beta/models';
+                // let baseUrl = 'http://localhost:8080/v1beta/models'; // For local dev
+
+                // Call API
+                const response = await fetch(`${baseUrl}/${model}:generateContent`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': 'true',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error?.message || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Remove Loading
+                removeMessage(loadingId);
+
+                // Process Response
+                processResponse(data);
+
+            } catch (error) {
+                removeMessage(loadingId);
+                addSystemMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                isGenerating = false;
+                sendBtn.disabled = false;
+                promptInput.focus();
+            }
+        }
+
+        // Helper function to send Doubao requests
+        async function sendDoubaoRequest(text, model) {
+            const requestBody = {
+                contents: [{ parts: [{ text: text }] }],
+                generationConfig: { temperature: 0.7 }
+            };
+
+            const response = await fetch(`http://localhost:8080/v1beta/models/${model}:generateContent`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true',
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error?.message || `HTTP ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        function processResponse(data) {
+            let textContent = '';
+            let images = [];
+
+            // 1. Standard Candidates (Text & Multimodal)
+            if (data.candidates && data.candidates.length > 0) {
+                data.candidates.forEach(candidate => {
+                    if (candidate.content && candidate.content.parts) {
+                        candidate.content.parts.forEach(part => {
+                            if (part.text) textContent += part.text;
+
+                            // Check for imageUrl (Doubao format)
+                            if (part.imageUrl) {
+                                images.push({
+                                    url: part.imageUrl,
+                                    width: part.width,
+                                    height: part.height
+                                });
+                            }
+
+                            // Check for inline images in response (rare for text models, but possible)
+                            const inline = part.inlineData || part.inline_data;
+                            if (inline) {
+                                images.push({
+                                    mimeType: inline.mimeType || inline.mime_type || 'image/png',
+                                    data: inline.data
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            // 2. Generated Images (Imagen / Flash Image)
+            // The backend might return `generatedImages` or standard candidates with inline data
+            else if (data.generatedImages) {
+                data.generatedImages.forEach(img => {
+                    images.push({
+                        mimeType: img.image.mimeType || 'image/png',
+                        data: img.image.imageBytes
+                    });
+                });
+                textContent = "Here is your generated image:";
+            }
+            // 3. Fallback
+            else if (!textContent && images.length === 0) {
+                textContent = "Received empty response from model.";
+            }
+
+            addMessageToChat('ai', textContent, images, data);
+        }
+
+        // =================================================================
+        // UI Helpers
+        // =================================================================
+
+        function addMessageToChat(role, text, images = [], rawData = null) {
+            const div = document.createElement('div');
+            div.className = `flex w-full ${role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in group`;
+
+            const isUser = role === 'user';
+
+            let contentHtml = '';
+
+            // 1. Text (Rendered First)
+            if (text) {
+                const parsedText = isUser ? text : marked.parse(text);
+                contentHtml += `
+                    <div class="max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 shadow-sm ${isUser
+                        ? 'bg-blue-600 text-white rounded-br-none'
+                        : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-none markdown-body'
+                    }">
+                        ${isUser ? `<p class="whitespace-pre-wrap">${text}</p>` : parsedText}
+                    </div>
+                `;
+            }
+
+            // 2. Images (Rendered Second)
+            if (images && images.length > 0) {
+                contentHtml += `<div class="flex flex-wrap gap-2 mt-2 ${isUser ? 'justify-end' : 'justify-start'} w-full pl-2">`;
+                images.forEach(img => {
+                    // Support both URL format (Doubao) and base64 format (Gemini)
+                    const src = img.url || img.previewUrl || `data:${img.mimeType};base64,${img.data}`;
+                    contentHtml += `<img src="${src}" class="max-w-xs rounded-lg border border-slate-700 shadow-md cursor-pointer hover:scale-[1.02] transition-transform" onclick="window.open(this.src)">`;
+                });
+                contentHtml += `</div>`;
+            }
+
+            // 3. Debug JSON Button (Only for AI)
+            if (!isUser && rawData) {
+                const jsonId = 'json-' + Date.now();
+                window['toggleJson_' + jsonId] = () => {
+                    const el = document.getElementById(jsonId);
+                    el.classList.toggle('hidden');
+                };
+
+                contentHtml += `
+                    <div class="w-full flex ${isUser ? 'justify-end' : 'justify-start'} mt-1">
+                        <button onclick="window['toggleJson_${jsonId}']()" class="text-[10px] text-slate-600 hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity px-2">
+                            DEBUG: Show Raw JSON
+                        </button>
+                    </div>
+                    <div id="${jsonId}" class="hidden w-full max-w-4xl mt-2 p-4 bg-black/50 rounded-lg border border-slate-800 text-xs font-mono text-green-400 overflow-x-auto whitespace-pre">
+${JSON.stringify(rawData, null, 2)}
+                    </div>
+                `;
+            }
+
+            div.innerHTML = contentHtml;
+            // Wrap in a column flex to stack text/images/debug
+            div.classList.add('flex-col');
+            if (isUser) div.classList.add('items-end');
+
+            chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function addLoadingIndicator() {
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'flex w-full justify-start animate-fade-in';
+            div.innerHTML = `
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-1">
+                    <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
+                    <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
+                    <div class="w-2 h-2 bg-slate-400 rounded-full typing-dot"></div>
+                </div>
+            `;
+            chatContainer.appendChild(div);
+            scrollToBottom();
+            return id;
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function addSystemMessage(text, type = 'info') {
+            const div = document.createElement('div');
+            div.className = 'flex w-full justify-center my-2';
+            div.innerHTML = `
+                <span class="text-xs px-3 py-1 rounded-full ${type === 'error' ? 'bg-red-900/50 text-red-300 border border-red-800' : 'bg-slate-800 text-slate-400'}">
+                    ${text}
+                </span>
+            `;
+            chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+    </script>
+</body>
+
+</html>
