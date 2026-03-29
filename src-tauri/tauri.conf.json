@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AI Studio",
+  "productName": "豆包生图助手",
   "version": "1.0.0",
-  "identifier": "com.ios.ai-studio",
+  "identifier": "com.ios.doubao-assistant",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "",
+        "title": "豆包生图助手",
         "titleBarStyle": "Overlay",
         "width": 1320,
         "height": 960,
@@ -29,6 +29,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [
+      "../server/**",
+      "../DoubaoShadowNode-local/**"
+    ],
     "macOS": {
       "infoPlist": "Info.plist"
     },
