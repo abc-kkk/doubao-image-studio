@@ -74,7 +74,6 @@ npm run start:legacy
 
 - [使用指南](USAGE_GUIDE.md) - 详细的使用说明
 - [项目总结](PROJECT_SUMMARY.md) - 完整的项目介绍
-- [API文档](API_DOCS.md) - API接口说明
 - [优化总结](OPTIMIZATION_SUMMARY.md) - 参考图功能实现
 
 ## 🏗️ 项目结构
@@ -91,8 +90,7 @@ doubao-pro/
 │   ├── css/style.css             # 样式
 │   └── js/app.js                 # 前端逻辑
 ├── images/                       # 图片存储
-├── DoubaoShadowNode/             # Chrome扩展
-└── index_doubao.js               # 旧版服务器（兼容）
+└── data/                         # SQLite 数据库
 ```
 
 ## 🔧 技术栈
@@ -192,13 +190,13 @@ POST   /api/images/delete-batch  # 批量删除
          │
          ↓
 ┌─────────────────┐
-│  Relay Server   │ ← 中继服务器（index_doubao.js）
+│  Relay Server   │ ← 中继服务器（app.js）
 │  (Node.js)      │   - 接收HTTP请求
 └────────┬────────┘   - 通过WebSocket转发
          │
          ↓
 ┌─────────────────┐
-│ Chrome Extension│ ← Chrome扩展（DoubaoShadowNode）
+│ Chrome Extension│ ← Chrome扩展（doubao-extension）
 │  - background.js│   - 接收WebSocket消息
 │  - content.js   │   - 操作豆包页面DOM
 │  - hook.js      │   - 拦截API响应
@@ -212,12 +210,8 @@ doubao-pro/
 ├── DoubaoShadowNode/          # Chrome扩展
 │   ├── manifest.json          # 扩展配置
 │   ├── background.js          # 后台脚本（WebSocket客户端）
-│   ├── content.js             # 内容脚本（DOM操作）✨ 新增参考图和比例功能
+│   ├── content.js             # 内容脚本（DOM操作）
 │   └── hook.js                # 注入脚本（API拦截）
-├── index_doubao.js            # 中继服务器（旧版入口）
-├── web_client.html            # 测试客户端（旧版）
-├── deploy_doubao.sh           # 部署脚本
-├── API_DOCS.md                # API文档 ✨ 更新文档
 └── README.md                  # 项目说明
 ```
 
@@ -296,20 +290,6 @@ async function processPrompt(text, requestId, isImageMode, referenceImages, aspe
 }
 ```
 
-### 3. index_doubao.js
-```javascript
-// 支持新参数
-message = JSON.stringify({
-    type: 'GENERATE',
-    requestId: id,
-    model: cleanModelName,
-    contents: req.body.contents,
-    config: req.body.generationConfig,
-    reference_images_b64: req.body.reference_images_b64 || [],  // ✨
-    aspect_ratio: req.body.aspect_ratio || 'Auto'               // ✨
-});
-```
-
 ## API使用示例
 
 ### 基础图片生成
@@ -352,16 +332,16 @@ npm install
 
 2. **启动中继服务器**
 ```bash
-node index_doubao.js
+node src/app.js
 # 或使用PM2
-pm2 start index_doubao.js --name doubao-relay
+pm2 start src/app.js --name doubao-relay
 ```
 
 3. **加载Chrome扩展**
 - 打开 Chrome 扩展管理页面 `chrome://extensions/`
 - 启用"开发者模式"
 - 点击"加载已解压的扩展程序"
-- 选择 `DoubaoShadowNode` 目录
+- 选择 `doubao-extension/dist` 目录
 
 4. **打开豆包页面**
 - 访问 https://www.doubao.com/chat/
@@ -369,7 +349,6 @@ pm2 start index_doubao.js --name doubao-relay
 - 扩展会自动连接到中继服务器
 
 5. **测试功能**
-- 打开 `web_client.html` 测试客户端
 - 或使用curl命令测试API
 
 ## 参考项目特性对比

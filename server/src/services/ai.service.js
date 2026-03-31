@@ -9,9 +9,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 import websocketService from './websocket.service.js';
-import modelScopeService from './modelscope.service.js';
-import siliconFlowService from './siliconflow.service.js';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -31,14 +28,6 @@ class AIService {
 
         // Process reference images: Convert URLs to Base64
         const processedImages = await this.processReferenceImages(referenceImages);
-
-        if (targetModel === 'mota') {
-            return await modelScopeService.handleChat(prompt);
-        }
-
-        if (targetModel === 'ds' || targetModel === 'hy') {
-            return await siliconFlowService.handleChat(targetModel, prompt);
-        }
 
         const isDoubao = targetModel.includes('doubao');
 
@@ -60,10 +49,6 @@ class AIService {
 
         // Process reference images: Convert URLs to Base64
         const validImages = await this.processReferenceImages(referenceImages);
-
-        if (targetModel === 'mota-image') {
-            return await modelScopeService.generateImage(prompt);
-        }
 
         const isDoubao = targetModel.includes('doubao');
 
@@ -173,20 +158,12 @@ class AIService {
     mapModel(model, mode) {
         const modelMap = {
             chat: {
-                'g2': 'gemini-2.0-flash',
-                'g2.5': 'gemini-2.5-flash',
-                'g3': 'gemini-3-pro-preview',
                 'db': 'doubao-pro',
                 'doubao': 'doubao-pro',
-                'mota': 'mota',
-                'ds': 'ds',
-                'hy': 'hy'
             },
             image_generation: {
-                'g2.5': 'gemini-2.5-flash-image',
                 'db': 'doubao-pro-image',
                 'doubao': 'doubao-pro-image',
-                'mota': 'mota-image'
             },
             vision: {
                 'g3': 'gemini-3-pro-preview'

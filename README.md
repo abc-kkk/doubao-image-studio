@@ -25,7 +25,7 @@
 ### 2. 配置浏览器扩展
 1. 打开 Chrome/Edge 浏览器，进入 `chrome://extensions/`。
 2. 开启右上角的“开发者模式”。
-3. 点击“加载已解压的扩展程序”，选择项目根目录下的 `DoubaoShadowNode-local` 文件夹。
+3. 点击”加载已解压的扩展程序”，选择 `doubao-extension/dist` 文件夹。
 4. 确保扩展状态显示为 `Connected`。
 
 ### 3. 开始使用

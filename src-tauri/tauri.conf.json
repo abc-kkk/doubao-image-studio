@@ -30,8 +30,7 @@
     "active": true,
     "targets": ["nsis", "dmg"],
     "resources": [
-      "../server",
-      "../DoubaoShadowNode-local"
+      "../server"
     ],
     "macOS": {
       "infoPlist": "Info.plist"
