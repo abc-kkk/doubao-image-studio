@@ -139,3 +139,238 @@ export async function checkWorkerStatus(serverUrl: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Doubao 文字聊天流式接口
+ *
+ * 直接调用豆包 samantha API，不经过 relay server。
+ * 支持多轮对话，自动处理 thinking 标签和流式打字。
+ */
+export async function doubaoStreamChat(
+  history: ChatMessage[],
+  conversationId: string,
+  onDelta: (delta: string, thinking?: string) => void,
+  onDone: (text: string, conversationId: string, thinking?: string) => void,
+  onError: (error: string) => void,
+): Promise<void> {
+  const params = new URLSearchParams({
+    aid: '497858',
+    device_platform: 'web',
+    language: 'zh',
+    pkg_type: 'release_version',
+    real_aid: '497858',
+    region: 'CN',
+    samantha_web: '1',
+    sys_region: 'CN',
+    use_olympus_account: '1',
+    version_code: '20800',
+  });
+
+  // 合并历史消息为 samantha 格式
+  const mergedText = history.map((m) => {
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    return `<|im_start|>${role}\n${m.content}\n`;
+  }).join('') + '<|im_end|>\n';
+
+  // 取最后一条用户消息作为当前输入
+  const lastUserMsg = [...history].reverse().find((m) => m.role === 'user');
+  const currentInput = lastUserMsg?.content ?? '';
+
+  const body = JSON.stringify({
+    messages: [
+      {
+        content: JSON.stringify({ text: mergedText }),
+        content_type: 2001,
+        attachments: [],
+        references: [],
+      },
+    ],
+    conversation_id: conversationId || '0',
+    local_conversation_id: `local_16${Date.now().toString().slice(-14)}`,
+    local_message_id: crypto.randomUUID(),
+    completion_option: {
+      is_regen: false,
+      with_suggest: true,
+      need_create_conversation: !conversationId,
+      launch_stage: 1,
+      is_replace: false,
+      is_delete: false,
+      message_from: 0,
+      event_id: '0',
+    },
+    section_list: [
+      {
+        messages: [
+          {
+            role: 1,
+            content: currentInput,
+            content_type: 2001,
+            attachments: [],
+            references: [],
+          },
+        ],
+      },
+    ],
+  });
+
+  try {
+    const response = await fetch(
+      `https://www.doubao.com/samantha/chat/completion?${params}`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Referer': 'https://www.doubao.com/chat/',
+          'Agw-js-conv': 'str',
+        },
+        body,
+      }
+    );
+
+    if (!response.ok || !response.body) {
+      const text = await response.text();
+      onError(`请求失败 ${response.status}: ${text.substring(0, 200)}`);
+      return;
+    }
+
+    let fullText = '';
+    let thinking = '';
+    let newConvId = '';
+    let textBuffer = '';
+    let thinkingBuffer = '';
+    let inThinking = false;
+    const TEXT_THRESHOLD = 20;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const flushTextBuffer = () => {
+      if (textBuffer.length > 0) {
+        fullText += textBuffer;
+        onDelta(textBuffer);
+        textBuffer = '';
+      }
+    };
+
+    const flushThinkingBuffer = () => {
+      if (thinkingBuffer.length > 0) {
+        thinking += thinkingBuffer;
+        onDelta('', thinking);
+        thinkingBuffer = '';
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        const dataStr = line.slice(5).trim();
+        if (!dataStr || dataStr === '[DONE]') continue;
+
+        try {
+          const data = JSON.parse(dataStr);
+
+          // 提取 conversation_id
+          if (data.conversation_id && data.conversation_id !== '0' && data.conversation_id !== 'null') {
+            newConvId = data.conversation_id;
+          }
+
+          // 解析 event_type 2003 (content delta)
+          if (data.event_type === 2003 && data.event_data) {
+            let eventData = data.event_data;
+
+            // event_data 可能是 JSON 字符串，需要二次解析
+            if (typeof eventData === 'string') {
+              try {
+                eventData = JSON.parse(eventData);
+              } catch {
+                // ignore
+              }
+            }
+
+            const delta = (eventData as any)?.text
+              ?? (eventData as any)?.content
+              ?? (eventData as any)?.delta
+              ?? (eventData as any)?.message?.content
+              ?? '';
+
+            if (typeof delta === 'string' && delta) {
+              // 处理 thinking 标签
+              const openTag = '<｜';
+              const closeTag = '｜>';
+              const thinkingStart = delta.indexOf(openTag);
+              const thinkingEnd = delta.indexOf(closeTag);
+
+              if (thinkingStart !== -1 && thinkingEnd !== -1) {
+                // 标签内开始/结束
+                if (!inThinking && thinkingStart < thinkingEnd) {
+                  inThinking = true;
+                  textBuffer += delta.substring(0, thinkingStart);
+                  flushTextBuffer();
+                  thinkingBuffer += delta.substring(thinkingStart + openTag.length, thinkingEnd);
+                } else if (inThinking && thinkingEnd > thinkingStart) {
+                  thinkingBuffer += delta.substring(0, thinkingEnd);
+                  flushThinkingBuffer();
+                  textBuffer += delta.substring(thinkingEnd + closeTag.length);
+                  inThinking = false;
+                }
+              } else if (inThinking) {
+                thinkingBuffer += delta;
+                flushThinkingBuffer();
+              } else {
+                textBuffer += delta;
+                if (textBuffer.length >= TEXT_THRESHOLD) {
+                  flushTextBuffer();
+                }
+              }
+            }
+          }
+
+          // 标准 SSE 兜底
+          const delta = data.choices?.[0]?.delta?.content
+            ?? data.text
+            ?? data.content
+            ?? data.delta
+            ?? '';
+
+          if (typeof delta === 'string' && delta) {
+            textBuffer += delta;
+            if (textBuffer.length >= TEXT_THRESHOLD) {
+              flushTextBuffer();
+            }
+          }
+
+          // STREAM_END 或 DONE
+          if (data.event_type === 'STREAM_END' || data.done || data.is_done) {
+            flushTextBuffer();
+            if (inThinking) {
+              flushThinkingBuffer();
+              inThinking = false;
+            }
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+    }
+
+    // 处理残余 buffer
+    flushTextBuffer();
+    if (inThinking) {
+      flushThinkingBuffer();
+    }
+
+    onDone(fullText, newConvId, thinking || undefined);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '网络请求失败';
+    onError(msg);
+  }
+}
