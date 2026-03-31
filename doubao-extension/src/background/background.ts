@@ -166,121 +166,44 @@ async function handleGenerateRequest(msg: any) {
 let currentConversationId: string = '';
 
 async function handleChatRequest(msg: any) {
+    // Forward to content script (runs in doubao.com page, can make fetch with cookies)
     const { requestId, messages } = msg;
-    const conversationId = currentConversationId;
 
-    // Build query params matching doubao web
-    const params = new URLSearchParams({
-        aid: '497858',
-        device_platform: 'web',
-        language: 'zh',
-        pkg_type: 'release_version',
-        real_aid: '497858',
-        region: 'CN',
-        samantha_web: '1',
-        sys_region: 'CN',
-        use_olympus_account: '1',
-        version_code: '20800',
-    });
+    console.log('[CHAT] background forwarding CHAT_REQUEST to content script, requestId:', requestId);
 
-    const url = `https://www.doubao.com/samantha/chat/completion?${params}`;
+    const tabs = await chrome.tabs.query({ url: 'https://www.doubao.com/*' });
+    if (tabs.length === 0 || !tabs[0].id) {
+        sendError(requestId, 'Doubao tab not open. Please open https://www.doubao.com/chat/');
+        return;
+    }
 
-    const body = JSON.stringify({
-        messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-        conversation_id: conversationId,
-        local_conversation_id: `local_16${Date.now().toString().slice(-14)}`,
-        local_message_id: crypto.randomUUID(),
-        completion_option: {
-            is_regen: false,
-            with_suggest: false,
-            need_create_conversation: conversationId === '',
-            launch_stage: 1,
-            is_replace: false,
-            is_delete: false,
-            message_from: 0,
-            event_id: '0',
-        },
-        section_list: [
-            {
-                messages: messages.map((m: any) => ({
-                    role: m.role === 'user' ? 1 : 2,
-                    content: m.content,
-                    content_type: 2001,
-                    attachments: [],
-                    references: [],
-                })),
-            },
-        ],
-    });
-
+    const tabId = tabs[0].id!;
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'Referer': 'https://www.doubao.com/chat/',
-                'Agw-js-conv': 'str',
-            },
-            body,
+        await chrome.tabs.sendMessage(tabId, {
+            type: 'CHAT_REQUEST',
+            requestId,
+            messages,
+            conversationId: currentConversationId,
         });
-
-        if (!response.ok || !response.body) {
-            const errText = await response.text();
-            sendError(requestId, `API error ${response.status}: ${errText.substring(0, 200)}`);
-            return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let fullText = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-
-            for (const line of lines) {
-                if (!line.startsWith('data:')) continue;
-                const data = line.slice(5).trim();
-                if (!data || data === '[DONE]') continue;
-                try {
-                    const json = JSON.parse(data);
-                    // Extract conversation_id if present
-                    if (json.conversation_id && json.conversation_id !== '0') {
-                        currentConversationId = json.conversation_id;
-                    }
-                    const delta = json.choices?.[0]?.delta?.content
-                        ?? json.choices?.[0]?.message?.content
-                        ?? json.message?.content
-                        ?? '';
-                    if (delta) {
-                        fullText += delta;
-                        if (socket?.readyState === WebSocket.OPEN) {
-                            socket.send(JSON.stringify({
-                                type: 'STREAM_CHUNK',
-                                requestId,
-                                delta,
-                            }));
-                        }
-                    }
-                } catch { /* skip malformed */ }
-            }
-        }
-
-        if (socket?.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-                type: 'STREAM_END',
+    } catch {
+        // Content script not injected yet, inject it then retry
+        console.log('[CHAT] Content script not found, injecting...');
+        try {
+            await chrome.scripting.executeScript({
+                target: { tabId },
+                files: ['assets/index.ts.js'],
+            });
+            await new Promise(r => setTimeout(r, 500));
+            await chrome.tabs.sendMessage(tabId, {
+                type: 'CHAT_REQUEST',
                 requestId,
-                text: fullText,
+                messages,
                 conversationId: currentConversationId,
-            }));
+            });
+        } catch (err2: any) {
+            console.error('[CHAT] failed after injection:', err2);
+            sendError(requestId, err2?.message ?? 'Failed to reach content script');
         }
-    } catch (err: any) {
-        sendError(requestId, err?.message ?? 'Chat fetch failed');
     }
 }
 
@@ -341,6 +264,34 @@ chrome.runtime.onMessage.addListener((request: any, _sender: any, sendResponse: 
                 content: { text: request.text }
             }));
         }
+    } else if (request.type === 'CHAT_CHUNK') {
+        if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'STREAM_CHUNK',
+                requestId: request.requestId,
+                delta: request.delta,
+            }));
+        }
+        sendResponse({ ok: true });
+        return true;
+    } else if (request.type === 'CHAT_END') {
+        if (request.conversationId) {
+            currentConversationId = request.conversationId;
+        }
+        if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'STREAM_END',
+                requestId: request.requestId,
+                text: request.text,
+                conversationId: request.conversationId,
+            }));
+        }
+        sendResponse({ ok: true });
+        return true;
+    } else if (request.type === 'CHAT_ERROR') {
+        sendError(request.requestId, request.error);
+        sendResponse({ ok: true });
+        return true;
     } else if (request.type === 'RESULT') {
         console.log('Got result from content script:', request);
         if (socket && socket.readyState === WebSocket.OPEN) {
