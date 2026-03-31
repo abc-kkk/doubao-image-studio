@@ -54,6 +54,10 @@ function connect() {
             if (msg.type === 'GENERATE' && (msg.model === 'doubao-pro' || msg.model === 'doubao-pro-image')) {
                 handleGenerateRequest(msg);
             }
+
+            if (msg.type === 'CHAT') {
+                handleChatRequest(msg);
+            }
         } catch (e) {
             console.error('Error parsing message:', e);
         }
@@ -155,6 +159,128 @@ async function handleGenerateRequest(msg: any) {
                 await new Promise(r => setTimeout(r, 1000));
             }
         }
+    }
+}
+
+// conversation_id persistence for multi-turn chat
+let currentConversationId: string = '';
+
+async function handleChatRequest(msg: any) {
+    const { requestId, messages } = msg;
+    const conversationId = currentConversationId;
+
+    // Build query params matching doubao web
+    const params = new URLSearchParams({
+        aid: '497858',
+        device_platform: 'web',
+        language: 'zh',
+        pkg_type: 'release_version',
+        real_aid: '497858',
+        region: 'CN',
+        samantha_web: '1',
+        sys_region: 'CN',
+        use_olympus_account: '1',
+        version_code: '20800',
+    });
+
+    const url = `https://www.doubao.com/samantha/chat/completion?${params}`;
+
+    const body = JSON.stringify({
+        messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+        conversation_id: conversationId,
+        local_conversation_id: `local_16${Date.now().toString().slice(-14)}`,
+        local_message_id: crypto.randomUUID(),
+        completion_option: {
+            is_regen: false,
+            with_suggest: false,
+            need_create_conversation: conversationId === '',
+            launch_stage: 1,
+            is_replace: false,
+            is_delete: false,
+            message_from: 0,
+            event_id: '0',
+        },
+        section_list: [
+            {
+                messages: messages.map((m: any) => ({
+                    role: m.role === 'user' ? 1 : 2,
+                    content: m.content,
+                    content_type: 2001,
+                    attachments: [],
+                    references: [],
+                })),
+            },
+        ],
+    });
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'Referer': 'https://www.doubao.com/chat/',
+                'Agw-js-conv': 'str',
+            },
+            body,
+        });
+
+        if (!response.ok || !response.body) {
+            const errText = await response.text();
+            sendError(requestId, `API error ${response.status}: ${errText.substring(0, 200)}`);
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+
+            for (const line of lines) {
+                if (!line.startsWith('data:')) continue;
+                const data = line.slice(5).trim();
+                if (!data || data === '[DONE]') continue;
+                try {
+                    const json = JSON.parse(data);
+                    // Extract conversation_id if present
+                    if (json.conversation_id && json.conversation_id !== '0') {
+                        currentConversationId = json.conversation_id;
+                    }
+                    const delta = json.choices?.[0]?.delta?.content
+                        ?? json.choices?.[0]?.message?.content
+                        ?? json.message?.content
+                        ?? '';
+                    if (delta) {
+                        fullText += delta;
+                        if (socket?.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({
+                                type: 'STREAM_CHUNK',
+                                requestId,
+                                delta,
+                            }));
+                        }
+                    }
+                } catch { /* skip malformed */ }
+            }
+        }
+
+        if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'STREAM_END',
+                requestId,
+                text: fullText,
+                conversationId: currentConversationId,
+            }));
+        }
+    } catch (err: any) {
+        sendError(requestId, err?.message ?? 'Chat fetch failed');
     }
 }
 

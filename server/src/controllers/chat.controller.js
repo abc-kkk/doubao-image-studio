@@ -36,6 +36,39 @@ export const chat = async (req, res) => {
     }
 };
 
+export const chatStream = async (req, res) => {
+    try {
+        const { messages } = req.body;
+
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return res.status(400).json({ error: 'Missing required field: messages' });
+        }
+
+        const targetSocket = websocketService.getTargetSocket('doubao-pro');
+        if (!targetSocket) {
+            return res.status(503).json({ error: 'No doubao worker connected' });
+        }
+
+        const requestId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        console.log(`💬 Chat stream request [${requestId}]: ${messages.at(-1)?.content?.substring(0, 50)}...`);
+
+        // SSE headers will be set on first STREAM_CHUNK
+        req.on('close', () => {
+            websocketService.pendingRequests.delete(requestId);
+        });
+
+        websocketService.sendRequest(requestId, res, targetSocket, JSON.stringify({
+            type: 'CHAT',
+            requestId,
+            messages,
+        }), 120000);
+
+    } catch (error) {
+        console.error('Chat stream error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+};
+
 export const deleteCurrentConversation = async (req, res) => {
     try {
         // Find the doubao worker socket

@@ -121,6 +121,40 @@ class WebSocketService {
             return;
         }
 
+        if (msg.type === 'STREAM_CHUNK') {
+            const pending = this.pendingRequests.get(msg.requestId);
+            if (pending?.res && !pending.res.headersSent) {
+                pending.res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                });
+            }
+            if (pending?.res) {
+                pending.res.write(`data: ${JSON.stringify({ delta: msg.delta })}\n\n`);
+            }
+            return;
+        }
+
+        if (msg.type === 'STREAM_END') {
+            const pending = this.pendingRequests.get(msg.requestId);
+            if (pending) {
+                const { res, timeoutId } = pending;
+                clearTimeout(timeoutId);
+                if (!res.headersSent) {
+                    res.writeHead(200, {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive',
+                    });
+                }
+                res.write(`data: ${JSON.stringify({ done: true, text: msg.text, conversationId: msg.conversationId })}\n\n`);
+                res.end();
+                this.pendingRequests.delete(msg.requestId);
+            }
+            return;
+        }
+
         if (msg.type === 'RESPONSE') {
             id = msg.requestId;
             success = true;

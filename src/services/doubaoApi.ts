@@ -77,6 +77,56 @@ export async function generateImages(
     .filter((img) => img.url !== '');
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export async function sendChatMessage(
+  messages: ChatMessage[],
+  serverUrl: string,
+  onChunk: (delta: string) => void,
+): Promise<{ text: string; conversationId?: string }> {
+  const base = getBaseUrl(serverUrl);
+  const url = `${base}/api/chat/stream`;
+  const body = JSON.stringify({ messages });
+
+  const res = await window.fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+
+  if (!res.ok) throw new Error(`Chat error: ${res.status}`);
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let conversationId: string | undefined;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    for (const line of chunk.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const payload = JSON.parse(line.slice(6));
+        if (payload.delta) {
+          fullText += payload.delta;
+          onChunk(payload.delta);
+        }
+        if (payload.done) {
+          fullText = payload.text ?? fullText;
+          conversationId = payload.conversationId;
+        }
+      } catch {}
+    }
+  }
+
+  return { text: fullText, conversationId };
+}
+
 export async function checkWorkerStatus(serverUrl: string): Promise<boolean> {
   const base = getBaseUrl(serverUrl);
   const healthUrl = `${base}/api/health`;
