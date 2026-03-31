@@ -17,7 +17,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-[52px] h-full bg-[#0f0f10] border-r border-white/[0.04] flex flex-col items-center py-3 gap-1">
+    <div className="w-[52px] h-full bg-[#0f0f10] border-r border-white/[0.04] flex flex-col items-center py-4 gap-1">
       {/* 图片生成 tab */}
       <button
         onClick={() => setView('studio')}
