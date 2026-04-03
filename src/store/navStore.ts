@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type View = 'studio' | 'compressor' | 'chat';
+type View = 'studio' | 'compressor';
 
 interface NavState {
   currentView: View;

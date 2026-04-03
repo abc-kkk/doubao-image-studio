@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Minimize2, Settings, History, MessageSquare } from 'lucide-react';
+import { Sparkles, Minimize2, Settings, History } from 'lucide-react';
 import { useNavStore } from '../../store/navStore';
 
 interface NavbarProps {
@@ -44,20 +44,6 @@ export function Navbar({ onOpenSettings }: NavbarProps) {
         >
           <Minimize2 size={20} />
           {currentView === 'compressor' && (
-             <div className="absolute left-0 w-1 h-5 bg-violet-500 rounded-r-full" />
-          )}
-        </button>
-        <button
-          onClick={() => setView('chat')}
-          className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all group relative ${
-            currentView === 'chat'
-              ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20 shadow-inner shadow-violet-500/10'
-              : 'text-white/20 hover:text-white/50 hover:bg-white/5'
-          }`}
-          title="文字聊天"
-        >
-          <MessageSquare size={20} />
-          {currentView === 'chat' && (
              <div className="absolute left-0 w-1 h-5 bg-violet-500 rounded-r-full" />
           )}
         </button>

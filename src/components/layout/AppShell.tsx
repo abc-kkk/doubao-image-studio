@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Settings, Archive, LayoutGrid, MessageSquare } from 'lucide-react';
-import { ChatView } from '../chat/ChatView';
+import { Settings, Archive, LayoutGrid } from 'lucide-react';
 import { useNavStore } from '../../store/navStore';
 import { CanvasArea } from '../canvas/CanvasArea';
 import { GalleryPanel } from '../gallery/GalleryPanel';
@@ -122,15 +121,6 @@ export function AppShell() {
             <div className="w-px h-4 bg-white/10 mx-1" />
 
             <button
-              onClick={() => setView(currentView === 'chat' ? 'studio' : 'chat')}
-              className={`p-2 rounded-lg transition-all ${
-                currentView === 'chat' ? 'bg-violet-500/10 text-violet-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
-              }`}
-              title="文字聊天"
-            >
-              <MessageSquare size={18} />
-            </button>
-            <button
               onClick={() => setShowGallery(!showGallery)}
               className={`p-2 rounded-lg transition-all ${
                 showGallery ? 'bg-violet-500/10 text-violet-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
@@ -152,9 +142,6 @@ export function AppShell() {
  
         <div className="flex-1 overflow-hidden">
           <div className="flex h-full">
-            {currentView === 'chat' ? (
-              <ChatView />
-            ) : (
             <div className="flex flex-col flex-1 overflow-hidden">
               <CanvasArea
                 onReusePrompt={handleReusePrompt}
@@ -166,7 +153,7 @@ export function AppShell() {
                 initialPrompt={reusePrompt}
                 initialReferenceImage={useReference}
               />
-            </div>)}
+            </div>
    
             <div 
               className={`border-l border-white/[0.06] bg-[#0f0f10] transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0 ${
