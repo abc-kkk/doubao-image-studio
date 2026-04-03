@@ -242,8 +242,15 @@ fn find_port() -> u16 {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Early logging to diagnose startup issues
+    eprintln!("[AI Studio] === Application starting ===");
+    eprintln!("[AI Studio] platform: {}", std::env::consts::OS);
+
     let db_path = find_db_path();
+    eprintln!("[AI Studio] db_path: {:?}", db_path);
+
     let port = find_port();
+    eprintln!("[AI Studio] port: {}", port);
 
     // Initialize database
     let db = match Db::new(&db_path) {
