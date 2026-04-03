@@ -10,7 +10,22 @@
       "Bash(git commit:*)",
       "Bash(git merge:*)",
       "Bash(git stash:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(ls /Users/ios/Desktop/lx-home/doubao-tauri/doubao-extension/dist/*.zip)",
+      "Bash(gh release:*)",
+      "Bash(ssh -T git@github.com)",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "Bash(git push:*)",
+      "Bash(cargo check:*)",
+      "Bash(bash -x /Users/ios/Desktop/lx-home/doubao-tauri/src-tauri/target/release/bundle/dmg/bundle_dmg.sh)",
+      "Bash(npx tsc:*)",
+      "Bash(zip -r ../doubao-assistant-chrome-extension.zip dist/)",
+      "Bash(git tag:*)",
+      "Bash(ls -la /Users/ios/Desktop/lx-home/doubao-tauri/src-tauri/target/release/bundle/*/)",
+      "Bash(rustup target:*)",
+      "Bash(gh run:*)",
+      "Bash(gh api:*)",
+      "mcp__MiniMax__understand_image"
     ]
   }
 }

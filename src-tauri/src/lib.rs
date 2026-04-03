@@ -5,8 +5,8 @@ mod server;
 use server::{start_server, Db};
 
 #[tauri::command]
-fn get_server_status() -> bool {
-    true
+fn get_server_status() -> Result<String, String> {
+    Ok(format!("Server running on port {}", find_port()))
 }
 
 #[tauri::command]
@@ -259,14 +259,28 @@ pub fn run() {
 
     // Spawn server in a background thread with its own Tokio runtime
     let server_port = port;
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-        rt.block_on(async {
-            if let Err(e) = start_server(server_port, db).await {
+    let server_handle = std::thread::Builder::new()
+        .name("rust-server".to_string())
+        .spawn(move || {
+            println!("[AI Studio] Starting Rust server on port {}...", server_port);
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("❌ Failed to create tokio runtime: {e}");
+                    return;
+                }
+            };
+            if let Err(e) = rt.block_on(start_server(server_port, db)) {
                 eprintln!("❌ Server error: {e}");
             }
+            println!("[AI Studio] Rust server thread exiting");
         });
-    });
+
+    if let Err(e) = server_handle {
+        eprintln!("❌ Failed to spawn server thread: {e}");
+    } else {
+        println!("[AI Studio] Server thread started successfully");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -284,8 +298,11 @@ pub fn run() {
             delete_file,
             clear_history_images
         ])
-        .setup(move |_app| {
-            println!("[AI Studio] Rust server running on port {}", port);
+        .setup(move |app| {
+            println!("[AI Studio] Tauri app setup complete");
+            println!("[AI Studio] Main window created, waiting for server...");
+            // Keep a reference to the app handle to prevent lifetime issues
+            let _ = app;
             Ok(())
         })
         .run(tauri::generate_context!())
