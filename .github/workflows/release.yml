@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-macos:
+  build-macos-x64:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,12 +34,12 @@ jobs:
         run: pnpm install
 
       - name: Build Tauri (x64)
-        run: pnpm tauri build
+        run: pnpm tauri build --target x86_64-apple-darwin
 
       - name: Upload x64 DMG
         uses: softprops/action-gh-release@v1
         with:
-          files: src-tauri/target/release/bundle/dmg/*.dmg
+          files: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
