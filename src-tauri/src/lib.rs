@@ -214,32 +214,23 @@ fn get_default_download_dir() -> Result<std::path::PathBuf, String> {
 }
 
 fn find_db_path() -> std::path::PathBuf {
-    let exe = std::env::current_exe().ok();
-    let app_dir = exe.as_ref().and_then(|p| p.parent()).map(|p| p.to_path_buf());
-
-    let candidates: Vec<std::path::PathBuf> = if let Some(dir) = app_dir {
-        vec![
-            dir.join("../Resources/server/data/metadata.db"),
-            dir.join("server/data/metadata.db"),
-            std::path::PathBuf::from("/Users/ios/Desktop/lx-home/doubao-tauri/server/data/metadata.db"),
-        ]
+    // Use system-appropriate app data directory
+    let data_dir = if let Some(dir) = dirs::data_local_dir() {
+        dir.join("doubao-assistant")
+    } else if let Some(dir) = dirs::data_dir() {
+        dir.join("doubao-assistant")
     } else {
-        vec![std::path::PathBuf::from(
-            "/Users/ios/Desktop/lx-home/doubao-tauri/server/data/metadata.db",
-        )]
+        std::path::PathBuf::from("/tmp/doubao-assistant")
     };
 
-    for path in &candidates {
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).ok();
-            }
+    // Ensure directory exists
+    if !data_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(&data_dir) {
+            eprintln!("⚠️ Failed to create data dir {:?}: {}", data_dir, e);
         }
     }
 
-    candidates.first().cloned().unwrap_or_else(|| {
-        std::path::PathBuf::from("/tmp/doubao-metadata.db")
-    })
+    data_dir.join("metadata.db")
 }
 
 fn find_port() -> u16 {
