@@ -34,7 +34,9 @@ jobs:
         run: pnpm install
 
       - name: Build Tauri (x64)
-        run: pnpm tauri build --target x86_64-apple-darwin
+        run: |
+          rustup target add x86_64-apple-darwin
+          pnpm tauri build --target x86_64-apple-darwin
 
       - name: Upload x64 DMG
         uses: softprops/action-gh-release@v1
