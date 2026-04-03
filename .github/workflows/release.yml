@@ -52,7 +52,7 @@ jobs:
             pnpm tauri build
           fi
 
-      - name: Create Release & Upload
+      - name: Upload to Release
         if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,20 +63,22 @@ jobs:
           # Find files matching pattern
           if [ "${{ runner.os }}" == "macOS" ]; then
             cd src-tauri/target/release/bundle
-            dmg_files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
-            if [ -n "$dmg_files" ]; then
-              for f in $dmg_files; do
-                echo "Found: $f"
-                gh release create "$tag" "$f" --clobber --title "豆包生图助手 $tag"
-              done
-            fi
+            files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
           else
             cd src-tauri/target/release/bundle
-            exe_files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
-            if [ -n "$exe_files" ]; then
-              for f in $exe_files; do
-                echo "Found: $f"
-                gh release create "$tag" "$f" --clobber --title "豆包生图助手 $tag"
-              done
-            fi
+            files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
+          fi
+
+          if [ -n "$files" ]; then
+            for f in $files; do
+              echo "Found: $f"
+            done
+            # Create release first, then upload files
+            gh release create "$tag" --title "豆包生图助手 $tag" --generate-notes
+            for f in $files; do
+              echo "Uploading $f"
+              gh release upload "$tag" "$f"
+            done
+          else
+            echo "No files found"
           fi
