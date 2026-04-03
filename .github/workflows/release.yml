@@ -5,23 +5,12 @@ on:
     tags:
       - 'v*'
 
-jobs:
-  build:
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            target: ''
-            pattern: "*.dmg"
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-            pattern: "*aarch64*.dmg"
-          - platform: windows-latest
-            target: ''
-            pattern: "*.exe"
+permissions:
+  contents: write
 
+jobs:
+  build-macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -44,41 +33,75 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Tauri
-        run: |
-          if [ -n "${{ matrix.target }}" ]; then
-            pnpm tauri build --target ${{ matrix.target }}
-          else
-            pnpm tauri build
-          fi
+      - name: Build Tauri (x64)
+        run: pnpm tauri build
 
-      - name: Upload to Release
-        if: success()
+      - name: Upload x64 DMG
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/bundle/dmg/*.dmg
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          tag=${GITHUB_REF#refs/tags/}
 
-          # Find files matching pattern
-          if [ "${{ runner.os }}" == "macOS" ]; then
-            cd src-tauri/target/release/bundle
-            files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
-          else
-            cd src-tauri/target/release/bundle
-            files=$(find . -name "${{ matrix.pattern }}" -type f 2>/dev/null)
-          fi
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
 
-          if [ -n "$files" ]; then
-            for f in $files; do
-              echo "Found: $f"
-            done
-            # Create release first, then upload files
-            gh release create "$tag" --title "豆包生图助手 $tag" --generate-notes
-            for f in $files; do
-              echo "Uploading $f"
-              gh release upload "$tag" "$f"
-            done
-          else
-            echo "No files found"
-          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Tauri (arm64)
+        run: pnpm tauri build --target aarch64-apple-darwin
+
+      - name: Upload arm64 DMG
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Tauri
+        run: pnpm tauri build
+
+      - name: Upload EXE
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/bundle/nsis/*.exe
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
