@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build-macos:
+  build-macos-x64:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,21 +29,60 @@ jobs:
 
       - run: pnpm install
 
-      - name: Build Tauri (x64)
+      - name: Build Tauri
         run: pnpm tauri build
+
+      - name: Upload DMG
+        run: |
+          echo "Finding DMG files..."
+          find src-tauri/target/release/bundle -name "*.dmg" -type f
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=${GITHUB_REF#refs/tags/}
+          gh release create "$tag" \
+            --title "豆包生图助手 $tag" \
+            --generate-notes \
+            src-tauri/target/release/bundle/dmg/*.dmg || true
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - run: pnpm install
 
       - name: Build Tauri (arm64)
         run: pnpm tauri build --target aarch64-apple-darwin
 
-      - name: Upload DMG to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/macos-arm64/dmg/*.dmg
-          draft: false
+      - name: Upload arm64 DMG
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=${GITHUB_REF#refs/tags/}
+          find src-tauri/target -name "*.dmg" -type f -path "*aarch64*" | while read f; do
+            echo "Uploading $f"
+            gh release upload "$tag" "$f" --clobber
+          done
 
   build-windows:
     runs-on: windows-latest
@@ -64,11 +103,13 @@ jobs:
       - name: Build Tauri
         run: pnpm tauri build
 
-      - name: Upload EXE to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-          draft: false
+      - name: Upload EXE
+        if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=${GITHUB_REF#refs/tags/}
+          find src-tauri/target -name "*.exe" -type f | while read f; do
+            echo "Uploading $f"
+            gh release upload "$tag" "$f" --clobber
+          done
