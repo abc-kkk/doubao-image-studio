@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { Globe, Info, Folder, Terminal, Copy, ExternalLink } from 'lucide-react';
+import { Globe, Info, Folder, Terminal, Copy, ExternalLink, Bug, CheckCircle, XCircle } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '../../store/settingsStore';
 import { ApiDocModal } from './ApiDocModal';
 import { Toast } from '../common/Toast';
 import type { AppSettings } from '../../types';
+
+interface ServerStatus {
+  db_init: boolean;
+  db_path: string;
+  server_thread_started: boolean;
+  server_listening: boolean;
+  port: number;
+  error_message: string | null;
+}
 
 interface SettingsModalProps {
   open: boolean;
@@ -18,6 +28,23 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [showDoc, setShowDoc] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [serverStatus, setServerStatus] = useState<ServerStatus>({
+    db_init: false,
+    db_path: '',
+    server_thread_started: false,
+    server_listening: false,
+    port: 8081,
+    error_message: null,
+  });
+
+  // Load server status when modal opens
+  useEffect(() => {
+    if (open) {
+      invoke<ServerStatus>('get_server_status')
+        .then(setServerStatus)
+        .catch(console.error);
+    }
+  }, [open]);
 
   const curlExample = `curl -X POST http://localhost:8081/api/unified -H "Content-Type: application/json" -d '{"mode":"image_generation","model":"db","prompt":"a cute cat"}'`;
 
@@ -62,7 +89,71 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             </div>
           </div>
         </div>
- 
+
+        {/* Diagnostics section */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Bug size={13} className="text-violet-400" />
+            <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">诊断信息</span>
+            <button
+              onClick={async () => {
+                try {
+                  const status = await invoke<ServerStatus>('get_server_status');
+                  setServerStatus(status);
+                } catch (e) {
+                  console.error('Failed to get server status:', e);
+                }
+              }}
+              className="ml-auto text-[10px] text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              刷新
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[11px] font-mono">
+            <div className="flex items-center gap-2">
+              {serverStatus.db_init ? (
+                <CheckCircle size={12} className="text-green-400" />
+              ) : (
+                <XCircle size={12} className="text-red-400" />
+              )}
+              <span className="text-white/60">数据库初始化:</span>
+              <span className={serverStatus.db_init ? 'text-green-400' : 'text-red-400'}>
+                {serverStatus.db_init ? '成功' : '失败'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {serverStatus.server_thread_started ? (
+                <CheckCircle size={12} className="text-green-400" />
+              ) : (
+                <XCircle size={12} className="text-red-400" />
+              )}
+              <span className="text-white/60">服务器线程:</span>
+              <span className={serverStatus.server_thread_started ? 'text-green-400' : 'text-red-400'}>
+                {serverStatus.server_thread_started ? '已启动' : '未启动'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-white/60">端口:</span>
+              <span className="text-white/80">{serverStatus.port}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-white/60">数据库路径:</span>
+              <span className="text-white/80 truncate" title={serverStatus.db_path}>
+                {serverStatus.db_path.split(/[/\\]/).slice(-2).join('/')}
+              </span>
+            </div>
+            {serverStatus.error_message && (
+              <div className="flex flex-col gap-1 p-2 rounded bg-red-500/10 border border-red-500/20">
+                <div className="flex items-center gap-2">
+                  <XCircle size={12} className="text-red-400" />
+                  <span className="text-red-400">错误:</span>
+                </div>
+                <span className="text-red-300 text-[10px]">{serverStatus.error_message}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Download Path section */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">

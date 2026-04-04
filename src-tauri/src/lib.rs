@@ -4,9 +4,63 @@ mod server;
 
 use server::{start_server, Db};
 
+// Server initialization status for diagnostics
+#[derive(Default)]
+struct ServerStatus {
+    db_init: bool,
+    db_path: String,
+    server_thread_started: bool,
+    server_listening: bool,
+    port: u16,
+    error_message: Option<String>,
+}
+
+use std::sync::OnceLock;
+use std::sync::Mutex;
+
+static SERVER_STATUS: OnceLock<Mutex<ServerStatus>> = OnceLock::new();
+
+fn get_status() -> &'static Mutex<ServerStatus> {
+    SERVER_STATUS.get_or_init(|| Mutex::new(ServerStatus::default()))
+}
+
+fn set_status<F>(f: F)
+where
+    F: FnOnce(&mut ServerStatus),
+{
+    if let Ok(mut s) = get_status().lock() {
+        f(&mut s);
+    }
+}
+
+#[derive(serde::Serialize)]
+struct StatusResponse {
+    db_init: bool,
+    db_path: String,
+    server_thread_started: bool,
+    server_listening: bool,
+    port: u16,
+    error_message: Option<String>,
+}
+
 #[tauri::command]
-fn get_server_status() -> Result<String, String> {
-    Ok(format!("Server running on port {}", find_port()))
+fn get_server_status() -> Result<StatusResponse, String> {
+    let s = get_status().lock().map_err(|e| e.to_string())?;
+    Ok(StatusResponse {
+        db_init: s.db_init,
+        db_path: s.db_path.clone(),
+        server_thread_started: s.server_thread_started,
+        server_listening: s.server_listening,
+        port: s.port,
+        error_message: s.error_message.clone(),
+    })
+}
+
+#[tauri::command]
+fn clear_server_error() {
+    if let Ok(mut s) = get_status().lock() {
+        s.error_message = None;
+    }
 }
 
 #[tauri::command]
@@ -242,23 +296,23 @@ fn find_port() -> u16 {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Early logging to diagnose startup issues
-    eprintln!("[AI Studio] === Application starting ===");
-    eprintln!("[AI Studio] platform: {}", std::env::consts::OS);
-
     let db_path = find_db_path();
-    eprintln!("[AI Studio] db_path: {:?}", db_path);
-
     let port = find_port();
-    eprintln!("[AI Studio] port: {}", port);
+
+    // Initialize status tracker
+    set_status(|s| {
+        s.db_path = db_path.to_string_lossy().to_string();
+        s.port = port;
+    });
 
     // Initialize database
     let db = match Db::new(&db_path) {
         Ok(db) => {
-            println!("📦 Database initialized at: {:?}", db_path);
+            set_status(|s| { s.db_init = true; });
             db
         }
         Err(e) => {
+            set_status(|s| { s.error_message = Some(format!("Database init failed: {}", e)); });
             eprintln!("❌ Failed to open database: {e}");
             std::process::exit(1);
         }
@@ -269,26 +323,27 @@ pub fn run() {
     let server_handle = std::thread::Builder::new()
         .name("rust-server".to_string())
         .spawn(move || {
-            println!("[AI Studio] Starting Rust server on port {}...", server_port);
+            set_status(|s| { s.server_thread_started = true; });
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
                 Err(e) => {
+                    set_status(|s| { s.error_message = Some(format!("Tokio runtime failed: {}", e)); });
                     eprintln!("❌ Failed to create tokio runtime: {e}");
                     return;
                 }
             };
             if let Err(e) = rt.block_on(start_server(server_port, db)) {
+                set_status(|s| { s.error_message = Some(format!("Server error: {}", e)); });
                 eprintln!("❌ Server error: {e}");
             }
-            println!("[AI Studio] Rust server thread exiting");
         });
 
     if let Err(e) = server_handle {
+        set_status(|s| { s.error_message = Some(format!("Thread spawn failed: {}", e)); });
         eprintln!("❌ Failed to spawn server thread: {e}");
-    } else {
-        println!("[AI Studio] Server thread started successfully");
     }
 
+    // Update status when Tauri setup is complete
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -305,11 +360,9 @@ pub fn run() {
             delete_file,
             clear_history_images
         ])
-        .setup(move |app| {
+        .setup(move |_app| {
+            // Server is now running in background, status reflects actual state
             println!("[AI Studio] Tauri app setup complete");
-            println!("[AI Studio] Main window created, waiting for server...");
-            // Keep a reference to the app handle to prevent lifetime issues
-            let _ = app;
             Ok(())
         })
         .run(tauri::generate_context!())
