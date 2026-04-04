@@ -11,6 +11,7 @@ pub use websocket::WsClientMap;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, RwLock};
 
 /// Shared application state for the HTTP server
@@ -31,7 +32,8 @@ impl Clone for AppState {
 }
 
 /// Start the server on the given port
-pub async fn start_server(port: u16, db: Db) -> Result<(), String> {
+/// The `listening` parameter is set to true when server successfully starts listening
+pub async fn start_server(port: u16, db: Db, listening: Option<Arc<AtomicBool>>) -> Result<(), String> {
     let (tx, _rx) = broadcast::channel::<String>(100);
     let ws_clients: Arc<RwLock<WsClientMap>> = Arc::new(RwLock::new(WsClientMap::default()));
 
@@ -45,16 +47,21 @@ pub async fn start_server(port: u16, db: Db) -> Result<(), String> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
-    println!("🚀 Doubao AI Studio Server running at: http://0.0.0.0:{port}");
-    println!("📱 Web App: http://localhost:{port}");
-    println!("🔌 WebSocket: ws://localhost:{port}/ws");
+    println!("🚀 Doubao AI Studio Server starting on http://0.0.0.0:{port}");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .map_err(|e| format!("Failed to bind port {port}: {e}"))?;
 
-    // Server is now listening - this is logged for diagnostics
-    println!("✅ Server is now listening on port {port}");
+    // Server is now listening
+    println!("✅ Server listening on http://0.0.0.0:{port}");
+    println!("📱 Web App: http://localhost:{port}");
+    println!("🔌 WebSocket: ws://localhost:{port}/ws");
+
+    // Signal that server is now listening
+    if let Some(flag) = listening {
+        flag.store(true, Ordering::SeqCst);
+    }
 
     axum::serve(listener, app)
         .await

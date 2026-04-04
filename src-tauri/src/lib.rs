@@ -4,24 +4,30 @@ mod server;
 
 use server::{start_server, Db};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock, Mutex};
+
 // Server initialization status for diagnostics
 #[derive(Default)]
 struct ServerStatus {
     db_init: bool,
     db_path: String,
     server_thread_started: bool,
-    server_listening: bool,
     port: u16,
     error_message: Option<String>,
 }
 
-use std::sync::OnceLock;
-use std::sync::Mutex;
-
 static SERVER_STATUS: OnceLock<Mutex<ServerStatus>> = OnceLock::new();
+// Separate flag for listening status (updated from server thread)
+static SERVER_LISTENING: OnceLock<AtomicBool> = OnceLock::new();
 
 fn get_status() -> &'static Mutex<ServerStatus> {
     SERVER_STATUS.get_or_init(|| Mutex::new(ServerStatus::default()))
+}
+
+fn get_listening() -> &'static Arc<AtomicBool> {
+    static ONCE: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+    ONCE.get_or_init(|| Arc::new(AtomicBool::new(false)))
 }
 
 fn set_status<F>(f: F)
@@ -50,7 +56,7 @@ fn get_server_status() -> Result<StatusResponse, String> {
         db_init: s.db_init,
         db_path: s.db_path.clone(),
         server_thread_started: s.server_thread_started,
-        server_listening: s.server_listening,
+        server_listening: get_listening().load(Ordering::SeqCst),
         port: s.port,
         error_message: s.error_message.clone(),
     })
@@ -332,7 +338,7 @@ pub fn run() {
                     return;
                 }
             };
-            if let Err(e) = rt.block_on(start_server(server_port, db)) {
+            if let Err(e) = rt.block_on(start_server(server_port, db, Some(Arc::clone(get_listening())))) {
                 set_status(|s| { s.error_message = Some(format!("Server error: {}", e)); });
                 eprintln!("❌ Server error: {e}");
             }
