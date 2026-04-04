@@ -7,6 +7,7 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
+use futures_util::SinkExt;
 use base64::Engine;
 use image::codecs::jpeg::JpegEncoder;
 use image::GenericImageView;
@@ -26,8 +27,9 @@ pub fn create_app(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/history", get(get_history).post(save_history).delete(clear_history))
-        .route("/api/history/:id", delete(delete_history))
+        .route("/api/history/{id}", delete(delete_history))
         .route("/api/compress", post(compress_image))
+        .route("/api/images/generate", post(generate_image))
         .route("/local-proxy", get(local_proxy))
         .route("/ws", get(ws_handler))
         .route("/config.json", get(config_json))
@@ -88,6 +90,98 @@ async fn clear_history(State(state): State<AppState>) -> Result<axum::Json<serde
         Ok(()) => Ok(axum::Json(serde_json::json!({ "success": true }))),
         Err(_) => Err(http::StatusCode::INTERNAL_SERVER_ERROR),
     }
+}
+
+// === Image Generation ===
+
+use serde_json::Value;
+use uuid::Uuid;
+
+#[derive(Debug, Deserialize)]
+struct GenerateRequest {
+    model: Option<String>,
+    prompt: String,
+    aspect_ratio: Option<String>,
+    reference_images: Option<Vec<String>>,
+    switch_to_image_mode: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct GenerateResponse {
+    success: bool,
+    images: Vec<ImageResult>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ImageResult {
+    url: String,
+    thumbnail_url: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
+async fn generate_image(
+    State(state): State<AppState>,
+    axum::Json(req): axum::Json<GenerateRequest>,
+) -> Response {
+    let request_id = Uuid::new_v4().to_string();
+    let model = req.model.as_deref().unwrap_or("doubao-pro-image");
+    let aspect_ratio = req.aspect_ratio.as_deref().unwrap_or("1:1");
+    let reference_images = req.reference_images.unwrap_or_default();
+    let switch_to_image_mode = req.switch_to_image_mode.unwrap_or(false);
+
+    // Create contents array
+    let contents = vec![serde_json::json!({ "text": req.prompt })];
+
+    // Send GENERATE message to Chrome extension via WebSocket
+    let ws_msg = serde_json::json!({
+        "type": "GENERATE",
+        "request_id": request_id,
+        "model": model,
+        "contents": contents,
+        "aspect_ratio": aspect_ratio,
+        "reference_images_b64": reference_images,
+        "switch_to_image_mode": switch_to_image_mode
+    });
+
+    // Try to send to Chrome extension
+    let clients = state.ws_clients.read().await;
+    if let Some(ref write) = clients.legacy {
+        let write = write.clone();
+        let msg_str = serde_json::to_string(&ws_msg).unwrap_or_default();
+        let send_result = tokio::spawn(async move {
+            let mut write_guard = write.lock().await;
+            write_guard.send(axum::extract::ws::Message::Text(axum::extract::ws::Utf8Bytes::from(msg_str))).await
+        }).await;
+
+        if send_result.is_err() || send_result.unwrap().is_err() {
+            let response = GenerateResponse {
+                success: false,
+                images: vec![],
+                error: Some("Failed to send request to Chrome extension".to_string()),
+            };
+            return (http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(response)).into_response();
+        }
+    } else {
+        // No Chrome extension connected
+        let response = GenerateResponse {
+            success: false,
+            images: vec![],
+            error: Some("Chrome extension not connected. Please ensure the extension is running.".to_string()),
+        };
+        return (http::StatusCode::SERVICE_UNAVAILABLE, axum::Json(response)).into_response();
+    }
+    drop(clients);
+
+    // For now, return a success indicating the request was sent
+    // The actual response will come via WebSocket and should be handled by the frontend
+    let response = GenerateResponse {
+        success: true,
+        images: vec![],
+        error: Some("Request sent to Chrome extension. Waiting for response...".to_string()),
+    };
+    axum::Json(response).into_response()
 }
 
 // === Image Compression ===
