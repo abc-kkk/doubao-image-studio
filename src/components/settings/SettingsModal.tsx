@@ -133,6 +133,17 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               </span>
             </div>
             <div className="flex items-center gap-2">
+              {serverStatus.server_listening ? (
+                <CheckCircle size={12} className="text-green-400" />
+              ) : (
+                <XCircle size={12} className="text-red-400" />
+              )}
+              <span className="text-white/60">服务器监听:</span>
+              <span className={serverStatus.server_listening ? 'text-green-400' : 'text-red-400'}>
+                {serverStatus.server_listening ? '正在监听 8081' : '未监听'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="text-white/60">端口:</span>
               <span className="text-white/80">{serverStatus.port}</span>
             </div>

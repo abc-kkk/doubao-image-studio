@@ -25,7 +25,8 @@
       "Bash(rustup target:*)",
       "Bash(gh run:*)",
       "Bash(gh api:*)",
-      "mcp__MiniMax__understand_image"
+      "mcp__MiniMax__understand_image",
+      "Bash(zip -r doubao-assistant-chrome-extension.zip doubao-extension/dist/)"
     ]
   }
 }

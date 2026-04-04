@@ -53,6 +53,9 @@ pub async fn start_server(port: u16, db: Db) -> Result<(), String> {
         .await
         .map_err(|e| format!("Failed to bind port {port}: {e}"))?;
 
+    // Server is now listening - this is logged for diagnostics
+    println!("✅ Server is now listening on port {port}");
+
     axum::serve(listener, app)
         .await
         .map_err(|e| format!("Server error: {e}"))?;
