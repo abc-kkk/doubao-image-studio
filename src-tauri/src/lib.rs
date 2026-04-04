@@ -69,6 +69,49 @@ fn clear_server_error() {
     }
 }
 
+/// Start the Rust server manually (called from UI button)
+#[tauri::command]
+async fn start_server_manual(port: Option<u16>) -> Result<String, String> {
+    let p = port.unwrap_or_else(find_port);
+
+    // Check if already listening
+    if get_listening().load(Ordering::SeqCst) {
+        return Ok(format!("Server already running on port {}", p));
+    }
+
+    // Update status - server thread starting
+    set_status(|s| {
+        s.server_thread_started = true;
+        s.port = p;
+    });
+
+    // Get database path
+    let db_path = find_db_path();
+    let db = Db::new(&db_path).map_err(|e| format!("Database error: {}", e))?;
+
+    // Start server in background
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                set_status(|s| { s.error_message = Some(format!("Tokio runtime failed: {}", e)); });
+                eprintln!("❌ Failed to create tokio runtime: {e}");
+                return;
+            }
+        };
+        let _ = rt.block_on(start_server(p, db, Some(Arc::clone(get_listening()))));
+    });
+
+    // Wait a bit for server to start
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+
+    if get_listening().load(Ordering::SeqCst) {
+        Ok(format!("Server started on port {}", p))
+    } else {
+        Err("Server failed to start - check logs".to_string())
+    }
+}
+
 #[tauri::command]
 async fn check_worker(_url: String) -> bool {
     true
@@ -358,6 +401,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             get_server_status,
+            start_server_manual,
             check_worker,
             fetch_text,
             generate_image_request,

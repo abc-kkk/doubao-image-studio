@@ -162,6 +162,25 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 <span className="text-red-300 text-[10px]">{serverStatus.error_message}</span>
               </div>
             )}
+            {!serverStatus.server_listening && (
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await invoke<string>('start_server_manual', { port: serverStatus.port });
+                    console.log('Server start result:', result);
+                    // Refresh status after starting
+                    const status = await invoke<ServerStatus>('get_server_status');
+                    setServerStatus(status);
+                  } catch (e) {
+                    console.error('Failed to start server:', e);
+                    alert('启动服务器失败: ' + e);
+                  }
+                }}
+                className="mt-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[12px] font-medium transition-colors"
+              >
+                启动服务器
+              </button>
+            )}
           </div>
         </div>
 
