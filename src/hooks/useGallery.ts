@@ -2,7 +2,8 @@ import { useImageStore } from '../store/imageStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GeneratedImage } from '../types';
+import { getHistory, deleteHistory, clearHistory } from '../services/doubaoApi';
+import type { GeneratedImage, ModelId, AspectRatio } from '../types';
 
 import { ask } from '@tauri-apps/plugin-dialog';
 
@@ -11,16 +12,35 @@ export function useGallery() {
 
   const { settings } = useSettingsStore();
 
-  // Load history from SQLite on mount
+  // Load history from Rust SQLite on mount
   useEffect(() => {
-    const base = settings.websocketUrl.replace('ws://', 'http://').replace('/ws', '');
-    fetch(`${base}/api/history`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setImages(data);
-      })
-      .catch(e => console.warn('Failed to load history:', e));
-  }, [settings.websocketUrl, setImages]);
+    const loadHistory = async () => {
+      try {
+        const history = await getHistory(200, 0);
+        if (Array.isArray(history)) {
+          // Convert to GeneratedImage format
+          const converted = history.map(img => ({
+            id: img.id,
+            batchId: img.batchId,
+            prompt: img.prompt,
+            model: img.model as ModelId,
+            aspectRatio: img.aspectRatio as AspectRatio,
+            localPath: img.localPath,
+            url: img.url,
+            thumbnailUrl: img.url,
+            width: undefined as number | undefined,
+            height: undefined as number | undefined,
+            createdAt: img.createdAt,
+          }));
+          setImages(converted);
+        }
+      } catch (e) {
+        console.warn('Failed to load history:', e);
+      }
+    };
+    
+    loadHistory();
+  }, [setImages]);
 
   const selected = images.find((img) => img.id === selectedImageId) ?? null;
 
@@ -49,6 +69,14 @@ export function useGallery() {
           console.error('Failed to delete local file:', err);
         }
       }
+      
+      // Delete from Rust SQLite
+      try {
+        await deleteHistory(id);
+      } catch (err) {
+        console.error('Failed to delete from history:', err);
+      }
+      
       removeImage(id);
       if (selectedImageId === id) selectImage(null);
     },
@@ -64,8 +92,9 @@ export function useGallery() {
     if (confirmed) {
       try {
         await invoke('clear_history_images', { saveDir: settings.historyDir });
+        await clearHistory();
       } catch (err) {
-        console.error('Failed to clear history images:', err);
+        console.error('Failed to clear history:', err);
       }
       storeClearImages();
       selectImage(null);

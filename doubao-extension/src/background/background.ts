@@ -49,7 +49,7 @@ function connect() {
     socket.onmessage = async (event) => {
         try {
             const msg = JSON.parse(event.data);
-            console.log('Received message:', msg);
+            console.log('[Background] Received message type:', msg.type, 'requestId:', msg.requestId);
 
             if (msg.type === 'GENERATE' && (msg.model === 'doubao-pro' || msg.model === 'doubao-pro-image')) {
                 handleGenerateRequest(msg);
@@ -344,26 +344,12 @@ chrome.runtime.onMessage.addListener((request: any, _sender: any, sendResponse: 
     } else if (request.type === 'RESULT') {
         console.log('Got result from content script:', request);
         if (socket && socket.readyState === WebSocket.OPEN) {
-            const parts: any[] = [{ text: request.text }];
-
-            // Add images if present
-            if (request.images && Array.isArray(request.images) && request.images.length > 0) {
-                request.images.forEach((img: any) => {
-                    parts.push({
-                        imageUrl: img.url,
-                        thumbnailUrl: img.thumbnail_url || img.thumbnailUrl || img.url,
-                        width: img.width,
-                        height: img.height
-                    });
-                });
-            }
-
+            // Send response in format Rust expects: { images: [...], text: "..." }
             socket.send(JSON.stringify({
                 type: 'RESPONSE',
                 requestId: request.requestId,
-                content: {
-                    parts: parts
-                }
+                text: request.text || '',
+                images: request.images || []
             }));
         }
     }

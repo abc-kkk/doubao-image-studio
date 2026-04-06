@@ -33,6 +33,63 @@ async function httpGet(url: string): Promise<unknown> {
   }
 }
 
+// ============================================================================
+// History Management (Rust-native via invoke)
+// ============================================================================
+
+export interface HistoryImage {
+  id: string;
+  batchId?: string;
+  prompt: string;
+  model: string;
+  aspectRatio?: string;
+  localPath?: string;
+  url: string;
+  createdAt: number;
+  status: string;
+}
+
+export async function getHistory(limit = 200, offset = 0): Promise<HistoryImage[]> {
+  try {
+    const result = await invoke<{ success: boolean; history: HistoryImage[] }>('get_history', { limit, offset });
+    return result.history || [];
+  } catch (e) {
+    console.error('Failed to get history:', e);
+    return [];
+  }
+}
+
+export async function saveHistory(image: HistoryImage): Promise<void> {
+  try {
+    await invoke('save_history', { image });
+  } catch (e) {
+    console.error('Failed to save history:', e);
+    throw e;
+  }
+}
+
+export async function deleteHistory(id: string): Promise<void> {
+  try {
+    await invoke('delete_history', { id });
+  } catch (e) {
+    console.error('Failed to delete history:', e);
+    throw e;
+  }
+}
+
+export async function clearHistory(): Promise<void> {
+  try {
+    await invoke('clear_history');
+  } catch (e) {
+    console.error('Failed to clear history:', e);
+    throw e;
+  }
+}
+
+// ============================================================================
+// Image Generation (Proxy to Workers via HTTP)
+// ============================================================================
+
 export interface ImageResult {
   url: string;
   thumbnail_url?: string;
@@ -58,6 +115,7 @@ export async function generateImages(
   });
 
   const text = await httpPost(url, body);
+  console.log('[doubaoApi] Raw response:', text.substring(0, 500));
   const data = JSON.parse(text) as {
     success: boolean;
     images: { url?: string; imageUrl?: string; thumbnail_url?: string; width?: number; height?: number }[];
@@ -65,7 +123,13 @@ export async function generateImages(
   };
 
   if (!data.success) throw new Error(data.error ?? '生成失败');
-  if (!data.images?.length) throw new Error('未返回图片');
+  if (!data.images?.length) {
+    // If no images but success, might be text response
+    if (data.success) {
+      return [];
+    }
+    throw new Error('未返回图片');
+  }
 
   return data.images
     .map((img) => ({
@@ -127,15 +191,45 @@ export async function sendChatMessage(
   return { text: fullText, conversationId };
 }
 
+// ============================================================================
+// Status & Progress (Rust-native)
+// ============================================================================
+
 export async function checkWorkerStatus(serverUrl: string): Promise<boolean> {
-  const base = getBaseUrl(serverUrl);
-  const healthUrl = `${base}/api/health`;
   try {
-    const result = await httpGet(healthUrl);
-    if (typeof result === 'boolean') return result;
-    const data = result as { registeredModels?: string[] };
-    return (data.registeredModels?.length ?? 0) > 0;
+    // Use Rust's get_server_status command
+    const status = await invoke<{
+      connections?: number;
+      registeredModels?: string[];
+      legacyConnected?: boolean;
+    }>('get_server_status');
+    
+    // Check for connections or registered models
+    const hasConnections = (status?.connections ?? 0) > 0;
+    const hasModels = (status?.registeredModels?.length ?? 0) > 0;
+    const legacyConnected = status?.legacyConnected ?? false;
+    
+    return hasConnections || hasModels || legacyConnected;
   } catch {
-    return false;
+    // Fallback: try HTTP
+    const base = getBaseUrl(serverUrl);
+    const healthUrl = `${base}/api/health`;
+    try {
+      const result = await httpGet(healthUrl);
+      if (typeof result === 'boolean') return result;
+      const data = result as { connections?: number; registeredModels?: string[] };
+      return (data.connections ?? 0) > 0 || (data.registeredModels?.length ?? 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+}
+
+export async function getProgress(): Promise<{ text: string; active: boolean }> {
+  try {
+    return await invoke<{ text: string; active: boolean }>('get_progress');
+  } catch (e) {
+    console.error('Failed to get progress:', e);
+    return { text: '', active: false };
   }
 }

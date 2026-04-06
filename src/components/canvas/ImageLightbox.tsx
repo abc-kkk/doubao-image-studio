@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Download, Trash2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { ask } from '@tauri-apps/plugin-dialog';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { GeneratedImage } from '../../types';
 
 interface ImageLightboxProps {
@@ -108,7 +109,7 @@ export function ImageLightbox({
 
         <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
           <img
-            src={image.localPath ? `http://localhost:8081/local-proxy?path=${encodeURIComponent(image.localPath)}` : image.url}
+            src={image.localPath ? convertFileSrc(image.localPath) : image.url}
             alt={image.prompt}
             className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-300 pointer-events-auto shadow-black"
           />

@@ -1,14 +1,28 @@
-import { useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useCallback, useEffect } from 'react';
 import { useImageStore, makeJob } from '../store/imageStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { generateImages } from '../services/doubaoApi';
-import { getBaseUrl } from '../services/doubaoApi';
+import { saveHistory, generateImages } from '../services/doubaoApi';
+import { chromeWorker } from '../services/chromeWorker';
 import type { AspectRatio } from '../types';
 
 export function useImageGeneration() {
   const { settings } = useSettingsStore();
-  const { setCurrentJob, updateCurrentJob, addImage, currentJob } = useImageStore();
+  const { setCurrentJob, updateCurrentJob, addImage } = useImageStore();
+
+  // Connect to WebSocket for progress updates only
+  useEffect(() => {
+    const wsUrl = settings.websocketUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+    chromeWorker.connect(wsUrl);
+    
+    // Set progress callback
+    chromeWorker.setProgressCallback((text: string) => {
+      updateCurrentJob({ progressText: text });
+    });
+
+    return () => {
+      chromeWorker.disconnect();
+    };
+  }, [settings.websocketUrl, updateCurrentJob]);
 
   const generate = useCallback(
     async (prompt: string, _model?: string, aspectRatio?: AspectRatio, switchToImageMode?: boolean, referenceImages?: string[]) => {
@@ -18,46 +32,31 @@ export function useImageGeneration() {
       // Add reference images to job state
       const jobWithRefs = { ...job, referenceImages };
       setCurrentJob(jobWithRefs);
-      updateCurrentJob({ status: 'generating', progressText: '正在连接豆包...' });
-
-      // Start polling for progress
-      const base = getBaseUrl(settings.websocketUrl);
-      const progressUrl = `${base}/api/progress`;
-      let polling = true;
-      
-      const pollProgress = async () => {
-        while (polling) {
-          try {
-            const text = await invoke<string>('fetch_text', { url: progressUrl });
-            const data = JSON.parse(text) as { text: string; active: boolean };
-            if (data.text && polling) {
-              updateCurrentJob({ progressText: data.text });
-            }
-          } catch {
-            // ignore polling errors
-          }
-          await new Promise(r => setTimeout(r, 1500));
-        }
-      };
-      
-      // Start polling in background
-      pollProgress();
+      updateCurrentJob({ status: 'generating', progressText: '正在生成图片...' });
 
       try {
+        // Use HTTP API to generate images via Chrome extension
+        console.log('[useImageGeneration] Calling generateImages...');
         const results = await generateImages(
-          prompt, 
-          targetRatio, 
-          settings.websocketUrl, 
-          switchToImageMode ?? false, 
+          prompt,
+          targetRatio,
+          settings.websocketUrl,
+          switchToImageMode,
           referenceImages
         );
+        console.log('[useImageGeneration] generateImages returned:', results.length, 'images');
 
-        // Stop polling
-        polling = false;
+        if (results.length === 0) {
+          updateCurrentJob({
+            status: 'error',
+            error: '未生成图片，请确保豆包网页已打开',
+          });
+          return;
+        }
 
         const batchId = crypto.randomUUID();
 
-        // Create image objects immediately using remote URLs
+        // Create image objects
         const generatedImages = results.map((result) => {
           const id = crypto.randomUUID();
           return {
@@ -71,23 +70,21 @@ export function useImageGeneration() {
             model: 'doubao' as const,
             aspectRatio: targetRatio,
             createdAt: Date.now(),
+            status: 'success',
           };
         });
 
-        // Add all returned images to gallery and sync to SQLite
+        console.log('[useImageGeneration] Adding', generatedImages.length, 'images to store');
+
+        // Add all returned images to gallery and sync to Rust SQLite
         [...generatedImages].reverse().forEach(async (img) => {
+          console.log('[useImageGeneration] addImage:', img.url.substring(0, 50));
           addImage(img);
-          // Sync to SQLite (don't await to keep UI fast)
-          fetch(`${base}/api/history`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(img)
-          }).catch(e => console.warn('History sync failed:', e));
+          saveHistory(img).catch(e => console.warn('History sync failed:', e));
         });
 
         updateCurrentJob({ status: 'success', result: generatedImages[0] });
       } catch (error) {
-        polling = false;
         updateCurrentJob({
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -97,5 +94,5 @@ export function useImageGeneration() {
     [settings, setCurrentJob, updateCurrentJob, addImage]
   );
 
-  return { generate, currentJob };
+  return { generate, currentJob: useImageStore.getState().currentJob };
 }

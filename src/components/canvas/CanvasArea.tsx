@@ -6,7 +6,7 @@ import { useImageStore } from '../../store/imageStore';
 import { useImageGeneration } from '../../hooks/useImageGeneration';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useNotificationStore } from '../../store/notificationStore';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import type { GeneratedImage } from '../../types';
 
 interface CanvasAreaProps {
@@ -21,8 +21,8 @@ export function CanvasArea({ onReusePrompt, onUseAsReference }: CanvasAreaProps)
   const { generate } = useImageGeneration();
 
   const ensureDownloaded = async (img: GeneratedImage): Promise<string> => {
-    // If already has localPath, return it (proxied)
-    if (img.localPath) return `http://localhost:8081/local-proxy?path=${encodeURIComponent(img.localPath)}`;
+    // If already has localPath, return Tauri native file URL
+    if (img.localPath) return convertFileSrc(img.localPath);
 
     try {
       const { settings } = useSettingsStore.getState();

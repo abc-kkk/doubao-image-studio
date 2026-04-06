@@ -47,10 +47,21 @@ export interface AppSettings {
   defaultAspectRatio: AspectRatio;
 }
 
-export interface WorkerMessage {
-  type: 'REGISTER' | 'RESPONSE' | 'ERROR' | 'PING' | 'PONG' | 'GENERATE';
-  requestId?: string;
-  model?: string;
-  data?: unknown;
-  error?: string;
+export interface ResponseContent {
+  parts: Array<{
+    text?: string;
+    imageUrl?: string;
+    thumbnailUrl?: string;
+    width?: number;
+    height?: number;
+  }>;
 }
+
+export type WorkerMessage =
+  | { type: 'REGISTER'; model?: string }
+  | { type: 'RESPONSE'; requestId: string; content: ResponseContent }
+  | { type: 'ERROR'; requestId?: string; error: string }
+  | { type: 'PING' }
+  | { type: 'PONG' }
+  | { type: 'GENERATE'; requestId: string; model: string; contents: unknown[]; aspect_ratio: string }
+  | { type: 'PROGRESS'; requestId: string; text: string };

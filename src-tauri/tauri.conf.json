@@ -4,9 +4,9 @@
   "version": "1.0.6",
   "identifier": "com.ios.doubao-assistant",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,9 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "dmg"],
-    "resources": [
-      "../server"
-    ],
+    "resources": [],
     "macOS": {
       "infoPlist": "Info.plist"
     },

@@ -1,13 +1,29 @@
 // @ts-nocheck
 console.log('Doubao Shadow Node: Hook Script Injected Successfully');
+console.log('Doubao Shadow Node: page URL is', window.location.href);
 const originalFetch = window.fetch;
 
 window.fetch = async function (url: string | URL | Request, options?: RequestInit) {
+    const urlStr = url?.toString() || '';
+    
+    // Debug: log all fetch requests (first 50 only)
+    if (!window._fetchCount) window._fetchCount = 0;
+    if (window._fetchCount < 50) {
+        console.log('[Hook] Fetch:', urlStr.substring(0, 100), options?.method || 'GET');
+        window._fetchCount++;
+    }
+
     const response = await originalFetch(url, options);
 
     // Start standard stream parsing
-    if (url && url.toString().includes('chat/completion')) {
-        console.log('Doubao Shadow Node: Intercepted chat completion', url);
+    // Check for various possible API endpoints
+    const isChatAPI = urlStr.includes('chat/completion') || 
+                      urlStr.includes('chat/completions') || 
+                      urlStr.includes('api/chat') ||
+                      urlStr.includes('v1/chat');
+    
+    if (isChatAPI) {
+        console.log('Doubao Shadow Node: Intercepted chat API:', urlStr);
 
         const clone = response.clone();
         const reader = clone.body.getReader();

@@ -55,31 +55,40 @@ export function CompressorView() {
     if (!origImage) return;
     setIsCompressing(true);
     try {
-      const response = await fetch('http://localhost:8010/api/compress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: origImage,
-          format: format.toLowerCase(),
-          quality
-        })
+      // Get original size
+      const origSize = origImage.length * 3 / 4; // Approximate base64 decoded size
+      
+      // Call Rust compress_image command
+      const dataUrl = await invoke<string>('compress_image', {
+        imageData: origImage,
+        format: format.toLowerCase(),
+        quality,
+        targetSize: 1024 * 1024 // 1MB target
       });
-      const data = await response.json();
-      if (data.success) {
-        setCompImage(data.dataUrl);
-        setStats({
-          origSize: data.origSize,
-          compSize: data.compSize,
-          width: data.width,
-          height: data.height,
-          ratio: ((1 - data.compSize / data.origSize) * 100).toFixed(1) + '%'
-        });
-        showToast('压缩完成！');
-      } else {
-        showToast('压缩失败: ' + data.error, 'error');
-      }
+      
+      setCompImage(dataUrl);
+      
+      // Get compressed size
+      const compSize = dataUrl.length * 3 / 4;
+      
+      // Get image dimensions from dataUrl
+      const img = new window.Image();
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.src = dataUrl;
+      });
+      
+      setStats({
+        origSize: Math.round(origSize),
+        compSize: Math.round(compSize),
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        ratio: ((1 - compSize / origSize) * 100).toFixed(1) + '%'
+      });
+      showToast('压缩完成！');
     } catch (err) {
-      showToast('网络错误，请确保后端服务已启动', 'error');
+      console.error('Compression failed:', err);
+      showToast('压缩失败: ' + String(err), 'error');
     } finally {
       setIsCompressing(false);
     }

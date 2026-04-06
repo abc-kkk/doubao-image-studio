@@ -21,9 +21,9 @@ export const GalleryItem = React.memo(({ image, selected, onSelect, onRemove, on
     minute: '2-digit',
   });
 
-  // Use Express proxy to avoid Tauri protocol issues
+  // Use Tauri native file loading
   const displayUrl = image.localPath 
-    ? `http://localhost:8081/local-proxy?path=${encodeURIComponent(image.localPath)}&w=160&h=160` 
+    ? convertFileSrc(image.localPath) 
     : image.url;
 
   return (
